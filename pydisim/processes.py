@@ -21,8 +21,9 @@ class AbstractProcess:
 
     def run_for(self,dt):
         '''
-        Run process for dt seconds. Must be overloaded
+        Run process for dt seconds.
         '''
+        # Must be implemented
         raise NotImplementedError
 
 class MainProcess(AbstractProcess):
@@ -82,13 +83,10 @@ class HoldupProcess(AbstractProcess):
     Tank level can go beyon 0-100%
 
 
-    Creation:
-    ---------
-    TankProcess(vol,level_0)
+    Parameters:
+    -----------
     vol : float
         volume of vessel (m3)
-    level_0 : float
-        starting level (%)
 
     Simulated Inputs:
     -----------------
@@ -101,26 +99,35 @@ class HoldupProcess(AbstractProcess):
     -----------------
     cVol : float
         volume of tank contents (vol*level/100) (m3)
+    level : float
+        liquid level in tank (%)
 
     Simulated Outputs:
     ------------------
-    level : float
-        liquid level in tank (%)
     '''
 
-    def __init__(self,vol,level_0):
+    @property
+    def level(self):
+        '''
+        The level state is internally maintained as cVol. This property allows
+        you to set the cVol as a level %
+        '''
+        return 100.0 * self.cVol/self.vol
+    @level.setter
+    def level(self,value):
+        self.cVol = self.vol * (value/100.0)
+        
+    def __init__(self):
         super().__init__()
 
-        self._vol = vol
-        self.level = level_0
-        self.cVol = self._vol*self.level/100.0
+        self.vol = 1.0
+        self.cVol = 0.5
 
         self.fIn = 0
         self.fOut = 0
 
     def run_for(self,dt):
         self.cVol += dt*(self.fIn - self.fOut)/3600.0
-        self.level = 100.0 * self.cVol/self._vol
 
 import math
 class CSTRProcessI(AbstractProcess):

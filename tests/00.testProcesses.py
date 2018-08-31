@@ -60,15 +60,19 @@ assert pid.op == 0.0 # output decrease due to sp change (no integral action)
 
 
 #---- TANK -----------------------------------------------------------
-tank = HoldupProcess(1,50)
+tank = HoldupProcess()
+
+assert tank.level == 50
+tank.level = 60
+assert tank.cVol == 0.6
 tank.fIn = 1.0
 tank.fOut = 1.0
 tank.run_for(3600)
-assert tank.level == 50
+assert tank.level == 60
 
 tank.fOut = 1.1
 tank.run_for(3600)
-assert abs(tank.level - 40) < 0.0000001
+assert abs(tank.level - 50) < 0.0000001
 
 
 #---- Tank level control -----------------------------------------------------
@@ -76,7 +80,7 @@ assert abs(tank.level - 40) < 0.0000001
 # that the final state is at setpoint. I also track the turning points and
 # maximum level and flow output to confirm this works as expected
 #-----------------------------------------------------------------------------
-tk001 = HoldupProcess(1,50)
+tk001 = HoldupProcess()
 tk001.fIn = 1.5
 tk001.fOut = 1.0
 
