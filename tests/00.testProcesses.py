@@ -21,23 +21,23 @@ assert pid.Td == 0.0
 pid.op = 50
 pid.pv = 50
 pid.sp = 50
-pid.RunFor(1)
+pid.run_for(1)
 assert pid.op == 50
 
 # Test proportional-only control
 pid.Ti = float('inf')
 pid.pv = 51
-pid.RunFor(1)
+pid.run_for(1)
 assert pid.op == 49
 
 # Test integral action
 pid.Ti = 100.0
-pid.RunFor(100)
+pid.run_for(100)
 assert pid.op == 48
 
 # Test K_onPv - the setpoint changes so integral action will be zero.
 pid.sp = 51
-pid.RunFor(100)
+pid.run_for(100)
 assert pid.op == 48
 
 # Test scaling and other advanced functions
@@ -50,11 +50,11 @@ pid.opLimits = (-10,10)
 pid.K_onErr = True
 pid.K = -1.0
 pid.Ti = 100.0
-pid.RunFor(100)
+pid.run_for(100)
 assert pid.op == 2.0 # output increase due to sp-pv error
 
 pid.sp = 51
-pid.RunFor(100)
+pid.run_for(100)
 assert pid.op == 0.0 # output decrease due to sp change (no integral action)
 
 
@@ -63,11 +63,11 @@ assert pid.op == 0.0 # output decrease due to sp change (no integral action)
 tank = HoldupProcess(1,50)
 tank.fIn = 1.0
 tank.fOut = 1.0
-tank.RunFor(3600)
+tank.run_for(3600)
 assert tank.level == 50
 
 tank.fOut = 1.1
-tank.RunFor(3600)
+tank.run_for(3600)
 assert abs(tank.level - 40) < 0.0000001
 
 
@@ -102,7 +102,7 @@ maxLvl = 0.0
 maxLvlT = 0
 for i in range(500):
     t += dt
-    proc.RunFor(dt)
+    proc.run_for(dt)
 
     if (tk001.level > maxLvl):
         maxLvlT = t

@@ -148,7 +148,7 @@ class CSTRProcess(AbstractProcess):
         self._xA = 1.0
         self._xB = 0.0
 
-    def RunFor(self,dt):
+    def run_for(self,dt):
         R = 8.314 # J/molK
         #extent of reactions:
 
@@ -280,7 +280,7 @@ class SeparatorProcess(AbstractProcess):
         self.Ftop_xA = rxa/rsum
         self.Ftop_xB = rxb/rsum
 
-    def RunFor(self,dt):
+    def run_for(self,dt):
         self._calculate_top_fractions()
 
         dxA = ( (self.Fin_F/self.V)*(self.Fin_xA - self._xA) -
@@ -318,7 +318,7 @@ def CreateProcess():
     rx1.J_T = 190
     rx1.T = 170
 
-    rx1.set_components(0.315,0.634)
+    rx1.set_components(0.38,0.56)
 
 
     rx2 = CSTRProcess()
@@ -326,43 +326,101 @@ def CreateProcess():
     rx2.J_V = 0.05
     rx2.UA = 2774
 
-    rx2.F1_F = 5.0
+    rx2.F1_F = 1.0
     rx2.F1_T = 150.0
     rx2.FJ_F = 0.2
     rx2.FJ_T = 280
     rx2.J_T = 175
     rx2.T = 170
 
-    rx2.set_components(0.011,0.749)
+    rx2.set_components(0.31,0.63)
+
 
     sep = SeparatorProcess()
     sep.V = 1.0
     sep.Q = 20000
+    sep.T = 178
+
+    sep.Ftop_F = 10.0
+    rx1.F2_F = 10.0
+    rx1.F2_T = 178
+
+    sep.set_components(0.17,0.75)
+
+
+
+    # Separator bottoms B-Spec controller
+
+    xc02 = PIDProcess()
+    xc02.sp = 0.75
+    xc02.pvRange = 0.2
+    xc02.opRange = 10.0
+    xc02.opLimits = (0.0,10.0)
+    xc02.op = rx1.F1_F
+    xc02.K = -1.0
+    xc02.Ti = 800
+
+    tc01 = PIDProcess()
+    tc01.sp = 170
+    tc01.op = 0.5
+    tc01.opLimits = (0,2.0)
+    tc01.opRange = 2.0
+    tc01.pvRange = 20.0
+    tc01.K = 2.0
+    tc01.Ti = 1500
+
+    tc02 = PIDProcess()
+    tc02.sp = 170
+    tc02.op = 0.2
+    tc02.opLimits = (0,1.0)
+    tc02.opRange = 1.0
+    tc02.pvRange = 20.0
 
 
     main = MainProcess()
+
     main.AddProcess(rx1)
+    main.AddProcess(tc01)
     main.AddProcess(rx2)
+    main.AddProcess(tc02)
+
     main.AddProcess(sep)
+    main.AddProcess(xc02)
+
 
     main.AddConnection(rx1,'Fout_F',rx2,'F2_F')
     main.AddConnection(rx1,'T',rx2,'F2_T')
     main.AddConnection(rx1,'xA',rx2,'F2_xA')
     main.AddConnection(rx1,'xB',rx2,'F2_xB')
 
+    main.AddConnection(rx1,'T',tc01,'pv')
+    main.AddConnection(tc01,'op',rx1,'FJ_F')
+
     main.AddConnection(rx2,'Fout_F',sep,'Fin_F')
     main.AddConnection(rx2,'T',sep,'Fin_T')
     main.AddConnection(rx2,'xA',sep,'Fin_xA')
     main.AddConnection(rx2,'xB',sep,'Fin_xB')
 
+    main.AddConnection(rx2,'T',tc02,'pv')
+    main.AddConnection(tc02,'op',rx2,'FJ_F')
+    
     main.AddConnection(sep,'Ftop_F',rx1,'F2_F')
     main.AddConnection(sep,'T',rx1,'F2_T')
     main.AddConnection(sep,'Ftop_xA',rx1,'F2_xA')
     main.AddConnection(sep,'Ftop_xB',rx1,'F2_xB')
 
+    main.AddConnection(sep,'xB',xc02,'pv')
+    main.AddConnection(xc02,'op',rx1,'F1_F')
+
     main.rx1 = rx1
     main.rx2 = rx2
     main.sep = sep
+    main.xc02 = xc02
+    main.tc01 = tc01
+    main.tc02 = tc02
+
+    for i in range(1000):
+        main.run_for(10)
 
     return main
 

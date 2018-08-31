@@ -7,7 +7,7 @@ class AbstractProcess:
     a given number of seconds by the MainProcess process unit (that is itself
     also a process unit).
 
-    Inherited classes must implement the RunFor-function.
+    Inherited classes must implement the run_for-function.
     Inherited classes must execute the super-class' __init__-function that
     creates a list of connection strings used by the MainProcess.
 
@@ -19,7 +19,7 @@ class AbstractProcess:
         # (outputName, downstreamProcess, downstreamInputName)
         self._connectionInfo = []
 
-    def RunFor(self,dt):
+    def run_for(self,dt):
         '''
         Run process for dt seconds. Must be overloaded
         '''
@@ -63,7 +63,7 @@ class MainProcess(AbstractProcess):
              downstreamProcess,
              downstreamProcessInput))
 
-    def RunFor(self,dt):
+    def run_for(self,dt):
         '''
         Run main process for dt seconds.
         This involves running each subprocess (in the order they were added to
@@ -71,7 +71,7 @@ class MainProcess(AbstractProcess):
         relevant downstream processes.
         '''
         for proc in self._subProcesses:
-            proc.RunFor(dt)
+            proc.run_for(dt)
             for c in proc._connectionInfo:
                 setattr(c[1],c[2],getattr(proc,c[0]))
 
@@ -118,7 +118,7 @@ class HoldupProcess(AbstractProcess):
         self.fIn = 0
         self.fOut = 0
 
-    def RunFor(self,dt):
+    def run_for(self,dt):
         self.cVol += dt*(self.fIn - self.fOut)/3600.0
         self.level = 100.0 * self.cVol/self._vol
 
@@ -243,7 +243,7 @@ class CSTRProcessI(AbstractProcess):
         self._xA = 1.0
         self._xB = 0.0
 
-    def RunFor(self,dt):
+    def run_for(self,dt):
         R = 8.314 # J/molK
         #extent of reactions:
 
@@ -312,6 +312,8 @@ class PIDProcess(AbstractProcess):
     D_onErr : bool
         Calculate derivative action on Error: Set to false to calculate on PV
         (default = false)
+    man : bool
+        Manual mode (default = false). In manual mode the execution is skipped
 
     Simulated Inputs:
     -----------------
@@ -400,8 +402,10 @@ class PIDProcess(AbstractProcess):
 
         self.op = 0.0
 
+        self.man = False
 
-    def RunFor(self,dt):
+
+    def run_for(self,dt):
         if (self._firstRun):
             self._lastPv = self._nextPv
             self._lastSp = self._nextSp
@@ -412,35 +416,35 @@ class PIDProcess(AbstractProcess):
 
         self._lastPv = self._nextPv
         self._lastSp = self._nextSp
-       
-        # For derivative action we must calculate the rate of change of the
-        # derivative term (pv or error) and then calculate the change in the
-        # rate of change
-        if (self.D_onErr):
-            dXdt = dErr/dt
-        else:
-            dXdt = dPv/dt
-        dDD = dXdt - self._lastDxDt
-        self._lastDxDt = dXdt
 
-        # dOP is scaled delta OP. Reverse acting is the norm, that is why
-        # everything is negative
+        if not self.man:
+            # For derivative action we must calculate the rate of change of the
+            # derivative term (pv or error) and then calculate the change in the
+            # rate of change
+            if (self.D_onErr):
+                dXdt = dErr/dt
+            else:
+                dXdt = dPv/dt
+            dDD = dXdt - self._lastDxDt
+            self._lastDxDt = dXdt
 
-        # Integral Action
-        dOP = -dt*(self.K/self.Ti)*(self._nextPv - self._nextSp)/self.pvRange
+            # dOP is scaled delta OP. Reverse acting is the norm, that is why
+            # everything is negative
 
-        # Proportional Action
-        if self.K_onErr:
-            dOP -= self.K*(dErr/self.pvRange)
-        else:
-            dOP -= self.K*(dPv/self.pvRange)
+            # Integral Action
+            dOP = -dt*(self.K/self.Ti)*(self._nextPv - self._nextSp)/self.pvRange
 
-        # Derivative Action
-        dOP -= self.K*self.Td*dDD/self.pvRange
+            # Proportional Action
+            if self.K_onErr:
+                dOP -= self.K*(dErr/self.pvRange)
+            else:
+                dOP -= self.K*(dPv/self.pvRange)
 
-        self.op += dOP*self.opRange
+            # Derivative Action
+            dOP -= self.K*self.Td*dDD/self.pvRange
+
+            self.op += dOP*self.opRange
+
         self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
-
         self._firstRun = False
         
-
