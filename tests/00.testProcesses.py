@@ -7,6 +7,8 @@ import sys
 sys.path.append('../')
 
 import matplotlib.pyplot as plt
+import numpy
+import scipy.interpolate
 
 from pydisim.processes import *
 
@@ -73,6 +75,71 @@ assert tank.level == 60
 tank.fOut = 1.1
 tank.run_for(3600)
 assert abs(tank.level - 50) < 0.0000001
+
+
+#---- SEP --------------------------------------------------------------------
+sep = SepProcess()
+
+assert sep.level == 50
+
+# Liquid Vapour Equilibrium
+sep.relVol = 3.0
+x_vle = numpy.linspace(0,1)
+y_vle = []
+for i in range(len(x_vle)):
+    sep.xA = x_vle[i]
+    sep.run_for(1)
+    y_vle.append( sep.xA_top )
+
+y_vle = numpy.array(y_vle)
+
+# Batch distillation test
+sep.xA = 0.9
+sep.F_top = 0.1
+
+yA = []
+xA = []
+t = []
+ti = 0
+dt = 60
+while (sep.F_top > 0.01):
+    ti += dt
+    t.append(ti)
+    sep.run_for(dt)
+    xA.append(sep.xA)
+    yA.append(sep.xA_top)
+
+#plt.plot(xA,yA)
+#plt.plot(x_vle,y_vle)
+#plt.show()
+vleInterp = scipy.interpolate.interp1d(x_vle,y_vle)
+y_check = vleInterp(xA)
+yA = numpy.array(yA)
+assert (sum(abs(y_check - yA))/len(yA)) < 0.01
+print(sum(abs(y_check - yA))/len(yA))
+
+# Full vap / full liq test
+sep.xA = 0.5
+sep.level = 50
+assert sep.cVol == 0.5
+
+sep.F_top = 0.0
+sep.run_for(1)
+y_NoVap = sep.xA_top
+assert sep.xA_top == 0.75
+sep.F_top = 0.5
+sep.run_for(3600)
+y_AllVap = sep.xA_top
+assert sep.xA_top == 0.5
+
+# Take 50% of volume out, confirm the top product is purer
+# but less pure than when there is no vapour
+sep.xA = 0.5
+sep.level = 50
+sep.F_top = 0.25
+sep.run_for(3600)
+assert sep.xA_top == 0.625
+assert sep.xA_bot == 0.375
 
 
 #---- Tank level control -----------------------------------------------------

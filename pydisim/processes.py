@@ -129,163 +129,110 @@ class HoldupProcess(AbstractProcess):
     def run_for(self,dt):
         self.cVol += dt*(self.fIn - self.fOut)/3600.0
 
-import math
-class CSTRProcessI(AbstractProcess):
+class SepProcess(AbstractProcess):
     '''
-    Constant holdup CSTR process.
+    Binary Separator Process
 
-    Reactor has two feeds that are mixtures of A, B, and C. The reaction in the
-    reactor is A -> B -> C and B is the valuable product. The reactor
-    temperature is controlled using a jacket. The flowrate of material through
-    the jacket can be adjusted.
+    Simulates separation process. The simulated process contains one input
+    stream and two output streams.
 
-    Parameters:
-    -----------
-    V : float
-        Volume of reactor
-    J_V : float
-        Volume of jacket
-    k1 : float
-        Reaction rate for A -> B (1/hr)
-    E1 : float
-        Activation eneregy for A -> B (J/mol)
-    H1 : float
-        Heat of reaction (J/mol)
-    k2 : float
-        Reaction rate for B -> C (1/hr)
-    E2 : float
-        Activation eneregy for B -> C (J/mol)
-    H2 : float
-        Activation energy (J/mol)
-    UA : float
-        Jacket heat transfer coefficient (W/K)
-    Cp : float
-        Heat capacity in the reactor (J/kg/K)
-    J_Cp : float
-        Heat capacity of jacket fluid (J/kg/K)
-    rho : float
-        Material density
-    J_rho : float
-        Jacket material density
+    Simulation Parameters:
+    ---------------------
+    vol      : Vessel volume (m3)
+    relVol   : Relative volatility
 
-
-    Simulated Inputs:
+    Simulation Inputs:
     -----------------
-    Fn_F : float
-        Fn flow rate (m3/h)
-    Fn_T : float
-        Fn flow temperature (degC)
-    Fn_x[A|B] : float
-        Fractions of components A and B in stream n
+    F_in     : Feed flowrate (m3/h)
+    F_bot    : Bottom flowrate (m3/h)
+    F_top    : Top flowrate (m3/h)
+    xA_in    : Feed fraction of component A
 
-
-    Simulated States:
+    Simulation States:
     -----------------
-    T : float
-        Temperature (degC)
-    J_T : float
-        Jacket temperature (degC)
-    x[A|B] : float
-        Fraction of components A and B.
-        Fractions can only be set using the set_components function
+    level    : Tank level (%)
+    cVol     : Volume of contents in tank
+    xA       : Fraction of component A
 
-
-    Simpulated Outputs:
-    -------------------
-    xC : float
-        Fraction of component C
+    Simulation Outputs:
+    ------------------
+    xA_top   : Component A fraction in top product
+    xA_bot   : Component A fraction in bottom product
     '''
 
     @property
-    def xA(self):
-        return self._xA
+    def level(self):
+        return 100.0 * self.cVol/self.vol
+    @level.setter
+    def level(self,value):
+        self.cVol = (value/100)*self.vol
     @property
-    def xB(self):
-        return self._xB
-    @property
-    def xC(self):
-        return 1 - self._xA - self._xB
+    def xA_bot(self):
+        return self.xA
 
-    def set_components(self,xA,xB):
-        if (xA + xB) > 1.0:
-            raise ValueError("Fractions of A and B bigger than 1.0")
-        self._xA = xA
-        self._xB = xB
+
 
     def __init__(self):
-        super().__init__()
+        self.vol = 1.0
+        self.relVol = 2.0
+        self.Cp = 4200*1000
+        
+        self.cVol = 0.5
+        self.xA = 0.5
 
-        self.V = 1.0
-        self.J_V = 0.1
-        self.UA = 2509.8
-
-        self.T = 25.0
-        self.J_T = 25.0
-
-        self.F1_F = 0.0
-        self.F1_T = 25.0
-        self.F1_xA = 1.0
-        self.F1_xB = 0.0
-
-        self.F2_F = 0.0
-        self.F2_T = 25.0
-        self.F2_xA = 1.0
-        self.F2_xB = 0.0
-
-        self.FJ_F = 0.0
-        self.FJ_T = 25.0
-
-        self.k1 = 9.97e5
-        self.E1 = 5e4
-        self.H1 = -6e4
-        self.k2 = 9.0e5
-        self.E2 = 6e4
-        self.H2 = -7e4
-
-        self.Cp = 4200 
-        self.J_Cp = 4200 
-        self.rho = 1000
-        self.J_rho = 1000
-
-        self._xA = 1.0
-        self._xB = 0.0
+        self.F_in = 0.0
+        self.xA_in = 0.5
+        self.F_bot = 0.0
+        self.F_top = 0.0
 
     def run_for(self,dt):
-        R = 8.314 # J/molK
-        #extent of reactions:
+        dtHr = dt/3600
 
-        print(-self.E1/(R*(self.T+273.15)))
+        # Total component A in vessel
+        Atot = (self.F_in*self.xA_in*dtHr + self.xA*self.cVol)
+        
+        self.cVol += self.F_in
+        if (self.cVol > 0):
+            xA = Atot/self.cVol
+        else:
+            xA = self.xA
 
-        rX1 = self.k1 * math.exp(-self.E1/(R*(self.T+273.15))) * self.xA
-        rX2 = self.k2 * math.exp(-self.E2/(R*(self.T+273.15))) * self.xB
-        print("rX1",rX1,"rX2",rX2)
+        # Relative volatility:
+        # relVol = (ya/xa)/(yb/xb)
+        # yb = 1-ya  ;   xb = 1-xa
+        # ya = xa*relVol / ( 1 - xa*(1-relVol) )
 
-        # rate of change of component A
-        dxA = ((self.F1_F/self.V)*(self.F1_xA-self.xA) +
-               (self.F2_F/self.V)*(self.F2_xA-self.xA) -
-                rX1 )
+        # yA if top flow tends to zero
+        yA_NoVap = ( (xA * self.relVol)
+                    /(1 - xA*(1-self.relVol)) )
+        xA_NoVap = xA
+        yA_AllVap = xA
+        xA_AllVap = xA/(self.relVol*(1-xA) + xA)
 
-        dxB = ((self.F1_F/self.V)*(self.F1_xB-self.xB) +
-               (self.F2_F/self.V)*(self.F2_xB-self.xB) +
-                rX1 - rX2 )
+        # What fraction of cVol is top flow
+        v_top = self.F_top*dtHr
+        if (v_top >= self.cVol):
+            v_top = self.cVol
+            self.F_top = self.cVol/dtHr
+            self.F_bot = 0
+            self.cVol = 0
+            self.xA = xA_AllVap
+            self.xA_top = yA_AllVap
+        else:
+            fx = v_top/self.cVol
+            self.xA_top = fx*yA_AllVap + (1-fx)*yA_NoVap
 
-        dT = ( ( self.F1_F / self.V )*( self.F1_T - self.T ) +
-               ( self.F2_F / self.V )*( self.F2_T - self.T ) -
-               ( self.H1 / self.Cp )*rX1 -
-               ( self.H2 / self.Cp )*rX2 +
-               self.UA * ( self.J_T - self.T )/( self.rho * self.Cp * self.V ) )
+            Atot -= self.xA_top*v_top
+            self.cVol -= v_top
+            self.xA = max(Atot/self.cVol, 0)
+           
+            v_bot = self.F_bot*dtHr
+            if v_bot >= self.cVol:
+                v_bot = self.cVol
+                self.F_bot = v_bot/dtHr
+            else:
+                self.cVol -= v_bot
 
-        dTJ = ( ( self.FJ_F / self.J_V )*( self.FJ_T - self.J_T )/
-                ( self.J_rho * self.J_Cp * self.J_V) )
-
-       
-        dthr = dt/3600
-        print("xA",self.xA,self._xA)
-        self._xA += dxA*dthr
-        print("xA",self.xA,self._xA)
-        self._xB += dxB*dthr
-        self.T += dT*dthr
-        self.J_T += dTJ*dthr
 
 
 class PIDProcess(AbstractProcess):
