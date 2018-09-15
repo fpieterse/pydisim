@@ -33,6 +33,12 @@ for i in range(9):
 
 assert rec.data[0][0] == 0
 assert rec.data[1][8] == 16
+if doPlot:
+    # This must create two windows with the same plot
+    rec.plot(plt,t)
+
+    rec.plot()
+    plt.show()
 
 rec.clear(3)
 assert len(rec.data) == 2
@@ -40,9 +46,6 @@ assert len(rec.data[0]) == 3
 assert rec.data[0][2] == 8
 
 
-if doPlot:
-    rec.plot(plt,t)
-    plt.show()
 
 rec = Recorder(['v1','v2'])
 prec = PIDRecorder('p')

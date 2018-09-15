@@ -41,7 +41,7 @@ class Recorder:
             else:
                 self.data[i].append(args[i])
 
-    def plot(self,ax,timestamps=None):
+    def plot(self,ax=None,timestamps=None):
         '''
         Plot recorder's data on matplotlib axis ax
 
@@ -53,6 +53,9 @@ class Recorder:
             List of x-axis values
         '''
 
+        if ax == None:
+            fig = plt.figure()
+            ax = plt
         if timestamps == None:
             for i in range(len(self.data)):
                 ax.plot(self.data[i],label=self.names[i])
