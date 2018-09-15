@@ -140,6 +140,19 @@ sep.run_for(3600)
 assert sep.xA_top == 0.625
 assert sep.xA_bot == 0.375
 
+sep.F_in = 1.0
+sep.level = 50
+sep.F_top = 0.5
+sep.F_bot = 0.5
+sep.run_for(1000)
+assert abs(sep.level - 50) < 0.001
+sep.F_top = 0.4
+sep.run_for(3600)
+assert abs(sep.level -60) < 0.001
+sep.F_bot = 0.6
+sep.run_for(3600)
+assert abs(sep.level -60) < 0.001
+
 
 #---- Tank level control -----------------------------------------------------
 # Run a tank with a level controller with fixed tuning for a while and confirm

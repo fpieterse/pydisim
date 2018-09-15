@@ -173,6 +173,7 @@ class SepProcess(AbstractProcess):
 
 
     def __init__(self):
+        super().__init__()
         self.vol = 1.0
         self.relVol = 2.0
         self.Cp = 4200*1000
@@ -191,10 +192,12 @@ class SepProcess(AbstractProcess):
         # Total component A in vessel
         Atot = (self.F_in*self.xA_in*dtHr + self.xA*self.cVol)
         
-        self.cVol += self.F_in
+        self.cVol += self.F_in*dtHr
         if (self.cVol > 0):
             xA = Atot/self.cVol
         else:
+            # if the vessel is empty and nothing came in then the concentration
+            # stays the same
             xA = self.xA
 
         # Relative volatility:
@@ -230,6 +233,7 @@ class SepProcess(AbstractProcess):
             if v_bot >= self.cVol:
                 v_bot = self.cVol
                 self.F_bot = v_bot/dtHr
+                self.cVol = 0
             else:
                 self.cVol -= v_bot
 
