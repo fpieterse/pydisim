@@ -1,3 +1,20 @@
+'''
+This file contains descriptions of processes that can be used to create large
+systems by connecting the processes. There is an AbstractProcess from which all
+processes derive. The requirement for a Process is to have a _connectionInfo
+array that the MainProcess will use to record which downstream processes to
+update after executing a processs. A Process must also define a run_for function
+that performs calculations when the process is run.
+
+The MainProcess class allows you to connect multiple processes together. The way
+this class connects the outputs from one class to another expects the values it
+connects to be scalars. This is a limitation because we can't specify an
+arbitrary number of input streams for things like the MixerProcess. It will be
+nice to define a standard stream class that contains composition, flowrate,
+temperature, and pressure but this puts more requirements on the subprocesses to
+handle all these properties. The idea is to create simple processes. The
+downside is that all processes are not necesarilly compatible.
+'''
 
 class AbstractProcess:
     '''
@@ -237,7 +254,49 @@ class SepProcess(AbstractProcess):
             else:
                 self.cVol -= v_bot
 
+class MixerProcess(AbstractProcess):
+    '''
+    Mixes streams. Calculates the composition and flowrate of mixture.
 
+    Simulation Inputs:
+    ------------------
+    F1_F    : Stream 1 flowrate
+    F1_xA   : Stream 1 fraction component A
+    F2_F    : Stream 2 flowrate
+    F2_xA   : Stream 2 fraction component A
+    F3_F    : Stream 3 flowrate
+    F3_xA   : Stream 3 fraction component A
+
+    Simulation Outputs:
+    -------------------
+    Fout_F  : Output flowrate
+    Fout_xA : Output fraction component A
+    '''
+
+    def __init__(self):
+        super().__init__()
+
+        # It would be nice to do this as an array but the way MainProcess gets
+        # the values of subprocessses to pass around expects floats.
+        
+        self.F1_F = 0
+        self.F1_xA = 0.5
+        self.F2_F = 0
+        self.F2_xA = 0.5
+        self.F3_F = 0
+        self.F3_xA = 0.5
+
+        self.Fout_F = 0
+        self.Fout_xA = 0.5
+
+    def run_for(self,dt):
+        self.Fout_F = self.F1_F + self.F2_F + self.F3_F
+        self.Fout_xA = ( (  (self.F1_F*self.F1_xA)
+                           +(self.F2_F*self.F2_xA)
+                           +(self.F3_F*self.F3_xA))
+                        /(self.Fout_F) )
+
+    
 
 class PIDProcess(AbstractProcess):
     '''

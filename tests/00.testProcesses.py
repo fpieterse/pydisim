@@ -153,6 +153,18 @@ sep.F_bot = 0.6
 sep.run_for(3600)
 assert abs(sep.level -60) < 0.001
 
+#---- MIXER-------------------------------------------------------------------
+
+mix = MixerProcess()
+mix.F1_F = 1.0
+mix.F2_F = 3.0
+mix.F3_F = 4.0
+mix.F1_xA = 0.0
+mix.F2_xA = 1.0
+mix.F3_xA = 0.5
+mix.run_for(1)
+assert mix.Fout_F == 8
+assert mix.Fout_xA == 0.625
 
 #---- Tank level control -----------------------------------------------------
 # Run a tank with a level controller with fixed tuning for a while and confirm
