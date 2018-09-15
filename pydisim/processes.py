@@ -35,13 +35,13 @@ class MainProcess(AbstractProcess):
         super().__init__()
         self._subProcesses = []
 
-    def AddProcess(self,process):
+    def add_process(self,process):
         '''
         Adds a process to the list of processes
         '''
         self._subProcesses.append(process)
 
-    def AddConnection(self,upstreamProcess,
+    def add_connection(self,upstreamProcess,
                            upstreamProcessOutput,
                            downstreamProcess,
                            downstreamProcessInput):

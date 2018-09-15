@@ -159,11 +159,11 @@ lc001.opLimits = (0,2.0)
 lc001.sp = 50
 
 proc = MainProcess()
-proc.AddProcess( tk001 )
-proc.AddProcess( lc001 )
-proc.AddConnection(tk001,'level',lc001,'pv')
-proc.AddConnection(tk001,'fOut',lc001,'op')
-proc.AddConnection(lc001,'op',tk001,'fOut')
+proc.add_process( tk001 )
+proc.add_process( lc001 )
+proc.add_connection(tk001,'level',lc001,'pv')
+proc.add_connection(tk001,'fOut',lc001,'op')
+proc.add_connection(lc001,'op',tk001,'fOut')
 
 t = 0
 dt = 60

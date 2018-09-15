@@ -379,38 +379,38 @@ def CreateProcess():
 
     main = MainProcess()
 
-    main.AddProcess(rx1)
-    main.AddProcess(tc01)
-    main.AddProcess(rx2)
-    main.AddProcess(tc02)
+    main.add_process(rx1)
+    main.add_process(tc01)
+    main.add_process(rx2)
+    main.add_process(tc02)
 
-    main.AddProcess(sep)
-    main.AddProcess(xc02)
+    main.add_process(sep)
+    main.add_process(xc02)
 
 
-    main.AddConnection(rx1,'Fout_F',rx2,'F2_F')
-    main.AddConnection(rx1,'T',rx2,'F2_T')
-    main.AddConnection(rx1,'xA',rx2,'F2_xA')
-    main.AddConnection(rx1,'xB',rx2,'F2_xB')
+    main.add_connection(rx1,'Fout_F',rx2,'F2_F')
+    main.add_connection(rx1,'T',rx2,'F2_T')
+    main.add_connection(rx1,'xA',rx2,'F2_xA')
+    main.add_connection(rx1,'xB',rx2,'F2_xB')
 
-    main.AddConnection(rx1,'T',tc01,'pv')
-    main.AddConnection(tc01,'op',rx1,'FJ_F')
+    main.add_connection(rx1,'T',tc01,'pv')
+    main.add_connection(tc01,'op',rx1,'FJ_F')
 
-    main.AddConnection(rx2,'Fout_F',sep,'Fin_F')
-    main.AddConnection(rx2,'T',sep,'Fin_T')
-    main.AddConnection(rx2,'xA',sep,'Fin_xA')
-    main.AddConnection(rx2,'xB',sep,'Fin_xB')
+    main.add_connection(rx2,'Fout_F',sep,'Fin_F')
+    main.add_connection(rx2,'T',sep,'Fin_T')
+    main.add_connection(rx2,'xA',sep,'Fin_xA')
+    main.add_connection(rx2,'xB',sep,'Fin_xB')
 
-    main.AddConnection(rx2,'T',tc02,'pv')
-    main.AddConnection(tc02,'op',rx2,'FJ_F')
+    main.add_connection(rx2,'T',tc02,'pv')
+    main.add_connection(tc02,'op',rx2,'FJ_F')
     
-    main.AddConnection(sep,'Ftop_F',rx1,'F2_F')
-    main.AddConnection(sep,'T',rx1,'F2_T')
-    main.AddConnection(sep,'Ftop_xA',rx1,'F2_xA')
-    main.AddConnection(sep,'Ftop_xB',rx1,'F2_xB')
+    main.add_connection(sep,'Ftop_F',rx1,'F2_F')
+    main.add_connection(sep,'T',rx1,'F2_T')
+    main.add_connection(sep,'Ftop_xA',rx1,'F2_xA')
+    main.add_connection(sep,'Ftop_xB',rx1,'F2_xB')
 
-    main.AddConnection(sep,'xB',xc02,'pv')
-    main.AddConnection(xc02,'op',rx1,'F1_F')
+    main.add_connection(sep,'xB',xc02,'pv')
+    main.add_connection(xc02,'op',rx1,'F1_F')
 
     main.rx1 = rx1
     main.rx2 = rx2
