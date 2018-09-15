@@ -100,8 +100,8 @@ class PIDRecorder(Recorder):
                           tagname + '.op'])
         self.tagname = tagname
 
-    def record(self,sp,pv,op):
-        super().record(sp,pv,op)
+    def record(self,pid):
+        super().record(pid.sp,pid.pv,pid.op)
 
     def plot(self,ax1,ax2,timestamps=None):
         '''

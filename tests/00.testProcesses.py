@@ -116,7 +116,6 @@ vleInterp = scipy.interpolate.interp1d(x_vle,y_vle)
 y_check = vleInterp(xA)
 yA = numpy.array(yA)
 assert (sum(abs(y_check - yA))/len(yA)) < 0.01
-print(sum(abs(y_check - yA))/len(yA))
 
 # Full vap / full liq test
 sep.xA = 0.5

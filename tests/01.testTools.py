@@ -3,6 +3,14 @@
 Tests for tools
 '''
 
+class TestPID():
+    '''
+    This class is just used as a data container to test the pid recorder
+    '''
+    sp = 0
+    pv = 0
+    op = 0
+
 doPlot = False
 
 import sys
@@ -40,8 +48,15 @@ rec = Recorder(['v1','v2'])
 prec = PIDRecorder('p')
 rec.record(1,10)
 rec.record(2,20)
-prec.record(3,4,5)
-prec.record(6,7,8)
+pid = TestPID()
+pid.sp = 3
+pid.pv = 4
+pid.op = 5
+prec.record(pid)
+pid.sp = 6
+pid.pv = 7
+pid.op = 8
+prec.record(pid)
 time = [1,2]
 savefile = '01.testTools.savetest.csv'
 save_to_file(savefile,time,rec,prec)
