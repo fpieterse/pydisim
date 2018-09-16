@@ -61,7 +61,8 @@ class MainProcess(AbstractProcess):
     def add_connection(self,upstreamProcess,
                            upstreamProcessOutput,
                            downstreamProcess,
-                           downstreamProcessInput):
+                           downstreamProcessInput,
+                           init=None):
         '''
         Connects output parameter of one process to another one
 
@@ -75,11 +76,30 @@ class MainProcess(AbstractProcess):
             A process to write results to
         downstreamProcessOutput : string
             Name of input of downstream process
+        init : string
+            A string indicating how to initialise values
+            <    : Initialise upstream value to equal downstream value.
+                   This is most common used initialisation. Use this to
+                   initialise PID controller outputs for example.
+            >    : Initialise downstream value to equal upstream value
+                   This is not very common because if processes are executed in
+                   a reasonable order then the values will be overwritten during
+                   the first execution. This can be useful to initialise
+                   processes that are part of a recycle.
+            None : (Default) no initialisation
         '''
         upstreamProcess._connectionInfo.append(
             (upstreamProcessOutput,
              downstreamProcess,
              downstreamProcessInput))
+
+        if init == "<":
+            setattr(upstreamProcess,upstreamProcessOutput,
+                    getattr(downstreamProcess,downstreamProcessInput))
+        elif init == ">":
+            setattr(downstreamProcess,downstreamProcessInput,
+                    getattr(upstreamProcess,upstreamProcessOutput))
+
 
     def run_for(self,dt):
         '''

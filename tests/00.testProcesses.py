@@ -173,7 +173,11 @@ assert mix.Fout_xA == 0.625
 #-----------------------------------------------------------------------------
 tk001 = HoldupProcess()
 tk001.fIn = 1.5
-tk001.fOut = 1.0
+tk001.fOut = 0.0 # will overwrite in initialisation
+
+tk002 = HoldupProcess()
+tk002.fIn = 1.0
+tk002.fOut = 1.0
 
 lc001 = PIDProcess()
 lc001.K = -1
@@ -182,12 +186,29 @@ lc001.opRange = 2.0
 lc001.opLimits = (0,2.0)
 lc001.sp = 50
 
+lc002 = PIDProcess()
+lc002.K = -1
+lc002.Ti = 1800
+lc002.opRange = 2.0
+lc002.opLimits = (0,2.0)
+lc002.sp = 50
+
 proc = MainProcess()
 proc.add_process( tk001 )
 proc.add_process( lc001 )
-proc.add_connection(tk001,'level',lc001,'pv')
-proc.add_connection(tk001,'fOut',lc001,'op')
-proc.add_connection(lc001,'op',tk001,'fOut')
+proc.add_process( tk002 )
+proc.add_process( lc002 )
+proc.add_connection(tk001,'fOut',tk002,'fIn','<')
+proc.add_connection(tk001,'level',lc001,'pv','>')
+proc.add_connection(lc001,'op',tk001,'fOut','<')
+proc.add_connection(tk002,'level',lc002,'pv')
+proc.add_connection(lc002,'op',tk002,'fOut','<')
+
+assert tk001.fOut == 1.0
+assert lc001.pv == 50.0
+assert lc001.op == 1.0
+assert lc002.pv == 0.0
+assert lc002.op == 1.0
 
 t = 0
 dt = 60
