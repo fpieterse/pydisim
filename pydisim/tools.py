@@ -150,16 +150,38 @@ def save_to_file(filename,time,*recorders):
         Remaining arguments are recorders to be saved to file
     '''
 
+    recList = []
+    for r in recorders:
+        if isinstance(r,Recorder):
+            recList.append(r)
+        elif type(r) == dict:
+            for key in r:
+                if isinstance(r[key],Recorder):
+                    recList.append(r[key])
+                else:
+                    print('WARNING: Element in dictionary is not a Recorder')
+                    print('         Data will not be saved to file')
+        elif type(r) == list:
+            for ri in r:
+                if isinstance(ri,Recorder):
+                    recList.append(ri)
+                else:
+                    print('WARNING: Element in list is not a Recorder')
+                    print('         Data will not be saved to file')
+        else:
+            print('WARNING: Argument is not a Recorder')
+            print('         Data will not be saved to file')
+
     with open(filename,'w') as f:
         f.write('time')
-        for r in recorders:
+        for r in recList:
             for n in r.names:
                 f.write(',' + n)
         f.write('\n')
 
         for i in range(len(time)):
             f.write(str(time[i]))
-            for r in recorders:
+            for r in recList:
                 for d in r.data:
                     f.write(',{:.6f}'.format(d[i]))
             f.write('\n')
