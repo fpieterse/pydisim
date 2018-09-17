@@ -16,6 +16,8 @@ handle all these properties. The idea is to create simple processes. The
 downside is that all processes are not necesarilly compatible.
 '''
 
+import numpy # for noise
+
 class AbstractProcess:
     '''
     Abstract process unit.
@@ -217,6 +219,7 @@ class SepProcess(AbstractProcess):
         
         self.cVol = 0.5
         self.xA = 0.5
+        self.xA_top = 0.5
 
         self.F_in = 0.0
         self.xA_in = 0.5
@@ -321,10 +324,6 @@ class MixerProcess(AbstractProcess):
 class PIDProcess(AbstractProcess):
     '''
     PID controller
-
-    Creation:
-    ---------
-    PIDProcess()
 
     Simulated Parameters:
     ---------------------
@@ -485,3 +484,63 @@ class PIDProcess(AbstractProcess):
         self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
         self._firstRun = False
         
+class GaussNoiseProcess(AbstractProcess):
+    '''
+    Adds noise to an input to simulate measurement error
+
+    Simulation Parameters:
+    ----------------------
+    sigma  : Standard deviation of noise
+
+    Simulation Inputs:
+    ------------------
+    input  : Input
+
+    Simulation Outputs:
+    -------------------
+    output : Output (noise + input)
+
+    '''
+
+    def __init__(self):
+        super().__init__()
+
+        self.sigma = 0.05
+        self.input = 0.0
+        self.output = 0.0
+
+    def run_for(self,dt):
+        self.output = self.input + numpy.random.normal(0,self.sigma)
+
+class BrownNoiseProcess(AbstractProcess):
+    '''
+    Simulates process noise. Process noise is Brown noise (I think) (I think
+    process noise is brown noise and I think what I did here is brown noise, but
+    I won't bet money on it.
+
+    Simulation Parameters:
+    ----------------------
+    limits  : (low, high) Tuple with low and high limits
+    rate    : Rate of movement in standard deviation per hour
+
+    Simulation States:
+    ------------------
+    output  : Output (noise + input)
+
+    '''
+
+    def __init__(self):
+        super().__init__()
+
+        self.output = 0.5
+        self.rate = 1.0
+        self.limits = (0,1.0)
+
+    def run_for(self,dt):
+        self.output += numpy.random.normal(0, self.rate*(dt/3600))
+        self.output = min(self.limits[1],max(self.limits[0],self.output))
+
+
+
+
+
