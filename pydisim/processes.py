@@ -483,6 +483,111 @@ class PIDProcess(AbstractProcess):
 
         self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
         self._firstRun = False
+
+class OperatorProcess(AbstractProcess):
+    '''
+    Simulates operator control actions.
+
+    Simulation Parameters:
+    ----------------------
+    K            : Integral gain
+    reactionTime : (min,max) Operator reacts not faster than minimum time and
+                   is forced to make a move after maximum time of no
+                   controlRange action was required for period.
+                   (hours)
+    controlRange : (min,max) Operator reacts when pv out of range
+    opRange      : (min,max) Control limits
+
+    Simulation States:
+    ------------------
+    tMove        : time since last action
+
+    Simulation Inputs:
+    ------------------
+    pv           : Process value
+
+    Simulation Outputs:
+    -------------------
+    op           : Output
+
+    '''
+
+    def __init__(self):
+        super().__init__()
+        self.K = 1.0
+        self.reactionTime = (0.1, 2.0)
+        self.controlRange = (0.0, 1.0)
+        self.pv = 0.5
+        self.op = 0.5
+        self.tMove =0.0
+        self.opRange = (0.0, 1.0)
+
+    def run_for(self,dt):
+        dtHr = dt/3600
+
+        self.tMove += dtHr
+
+        if self.tMove < self.reactionTime[0]:
+            return
+
+        if   ( self.pv < self.controlRange[0] ):
+            self.op += self.K*(self.controlRange[0] - self.pv)
+            self.tMove = 0.0
+        elif ( self.pv > self.controlRange[1] ):
+            self.op += self.K*(self.controlRange[1] - self.pv)
+            self.tMove = 0.0
+        elif ( self.tMove > (numpy.random.uniform()*self.reactionTime[1]) ):
+            sp = (self.controlRange[0] + self.controlRange[1])/2
+            self.op += 0.5*self.K*(sp - self.pv)
+            self.tMove = 0.0
+
+        self.op = max(self.opRange[0],min(self.opRange[1],self.op))
+
+class SplitRangeProcess(AbstractProcess):
+    '''
+    Split an iput according to a fraction
+
+    Simulation Parameters:
+    ----------------------
+    R  : Split ratio (0 - 1)
+
+    Simulation Inputs:
+    ------------------
+    input : Input signal
+
+    Simulation Outputs:
+    -------------------
+    op_1 : Output signal 1 (R*input)
+    op_2 : Output signal 2 ((1-R)*input)
+    '''
+
+    @property
+    def op_1(self):
+        return self.R * self.input
+    @op_1.setter
+    def op_1(self,value):
+        if self.R > 0.0:
+            self.input = value/self.R
+
+    @property
+    def op_2(self):
+        return (1-self.R)*self.input
+    @op_2.setter
+    def op_2(self,value):
+        if self.R < 1.0:
+            self.input = value/(1-self.R)
+
+
+    def __init__(self):
+        super().__init__()
+        
+        self.R = 0.5
+        self.input = 0
+
+    def run_for(self,dt):
+        pass
+
+
         
 class GaussNoiseProcess(AbstractProcess):
     '''
