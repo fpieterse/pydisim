@@ -501,6 +501,7 @@ class OperatorProcess(AbstractProcess):
     Simulation States:
     ------------------
     tMove        : time since last action
+    tNext        : time for next move
 
     Simulation Inputs:
     ------------------
@@ -520,6 +521,7 @@ class OperatorProcess(AbstractProcess):
         self.pv = 0.5
         self.op = 0.5
         self.tMove =0.0
+        self.tNext = 1.0
         self.opRange = (0.0, 1.0)
 
     def run_for(self,dt):
@@ -533,13 +535,16 @@ class OperatorProcess(AbstractProcess):
         if   ( self.pv < self.controlRange[0] ):
             self.op += self.K*(self.controlRange[0] - self.pv)
             self.tMove = 0.0
+            self.tNext = numpy.random.uniform()*self.reactionTime[1]
         elif ( self.pv > self.controlRange[1] ):
             self.op += self.K*(self.controlRange[1] - self.pv)
             self.tMove = 0.0
-        elif ( self.tMove > (numpy.random.uniform()*self.reactionTime[1]) ):
+            self.tNext = numpy.random.uniform()*self.reactionTime[1]
+        elif ( self.tMove > self.tNext ):
             sp = (self.controlRange[0] + self.controlRange[1])/2
             self.op += 0.5*self.K*(sp - self.pv)
             self.tMove = 0.0
+            self.tNext = numpy.random.uniform()*self.reactionTime[1]
 
         self.op = max(self.opRange[0],min(self.opRange[1],self.op))
 
