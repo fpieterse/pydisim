@@ -314,10 +314,14 @@ class MixerProcess(AbstractProcess):
 
     def run_for(self,dt):
         self.Fout_F = self.F1_F + self.F2_F + self.F3_F
-        self.Fout_xA = ( (  (self.F1_F*self.F1_xA)
-                           +(self.F2_F*self.F2_xA)
-                           +(self.F3_F*self.F3_xA))
-                        /(self.Fout_F) )
+
+        if (self.Fout_F > 0):
+            self.Fout_xA = ( (  (self.F1_F*self.F1_xA)
+                               +(self.F2_F*self.F2_xA)
+                               +(self.F3_F*self.F3_xA))
+                            /(self.Fout_F) )
+        else:
+            self.Fout_xA = 0.5
 
     
 
