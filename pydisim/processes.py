@@ -488,6 +488,157 @@ class PIDProcess(AbstractProcess):
         self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
         self._firstRun = False
 
+class NiPIDProcess(AbstractProcess):
+    '''
+    Non-Interacting PID controller
+
+    Simulated Parameters:
+    ---------------------
+    Kp : Proportional Gain.
+    Ki : Integral Gain (band per second)
+    Kd : Derivative Gain (band per second)
+    PVRange : float
+        PV range used for scaling (default 100)
+    OPRange : float
+        OP range used for scaling (default 100)
+    OPLimits : (float,float)
+        OP output limits  (default (0,100))
+    K_onErr : bool
+        Calculate proportional action on Error. Set to false to calculate on PV
+        (default = false)
+    D_onErr : bool
+        Calculate derivative action on Error: Set to false to calculate on PV
+        (default = false)
+    man : bool
+        Manual mode (default = false). In manual mode the execution is skipped
+
+    Simulated Inputs:
+    -----------------
+    sp : float
+        Setpoint [EU]
+    pv : float
+        Process value [EU]
+
+    Simulated States:
+    -----------------
+    op : float
+        Output [EU].
+        
+    Simulated Outputs: 
+    ------------------
+
+    '''
+
+    def get_pv(self):
+        return self._nextPv
+    def set_pv(self,value,init=False):
+        '''
+        Used by pv property to set the pv. You can call it directly if you
+        wish to initialise the error.
+
+        Parameters:
+        -----------
+        value : float
+            new pv
+        init : bool
+            set to True to make the change in PV zero
+        '''
+        self._nextPv = value
+        if init:
+            self._lastPv = value
+            self._lastDxDt = 0.0
+    pv = property(get_pv,set_pv)
+
+    def get_sp(self):
+        return self._nextSp
+    def set_sp(self,value,init=False):
+        '''
+        Used by sp property to set the setpoint. You can call it directly if you
+        wish to initialise the error.
+
+        Parameters:
+        -----------
+        value : float
+            new setpoint
+        init : bool
+            set to True to make the change in setpoint zero
+        '''
+        self._nextSp = value
+        if init:
+            self._lastSp = value
+            self._lastDxDt = value
+    sp = property(get_sp,set_sp)
+            
+
+    def __init__(self):
+        super().__init__()
+
+        self.Kp = 0.0
+        self.Ki = 0.0
+        self.Kd = 0.0
+        self.pvRange = 100.0
+        self.opRange = 100.0
+        self.opLimits = (0.0,100.0)
+
+        self.K_onErr = False
+        self.D_onErr = False
+
+        self._firstRun = True
+
+        self._lastPv = 0.0
+        self._lastSp = 0.0
+        self._nextPv = 0.0
+        self._nextSp = 0.0
+        self._lastDxDt = 0.0 # rate of change of derivative term
+
+        self.op = 0.0
+
+        self.man = False
+
+
+    def run_for(self,dt):
+        if (self._firstRun):
+            self._lastPv = self._nextPv
+            self._lastSp = self._nextSp
+        dPv = self._nextPv - self._lastPv
+
+        # change in erorr is change in PV minus change in SP
+        dErr = dPv - (self._nextSp - self._lastSp)
+
+        self._lastPv = self._nextPv
+        self._lastSp = self._nextSp
+
+        if not self.man:
+            # For derivative action we must calculate the rate of change of the
+            # derivative term (pv or error) and then calculate the change in the
+            # rate of change
+            if (self.D_onErr):
+                dXdt = dErr/dt
+            else:
+                dXdt = dPv/dt
+            dDD = dXdt - self._lastDxDt
+            self._lastDxDt = dXdt
+
+            # dOP is scaled delta OP. Reverse acting is the norm, that is why
+            # everything is negative
+
+            # Integral Action
+            dOP = -dt*self.Ki*(self._nextPv - self._nextSp)/self.pvRange
+
+            # Proportional Action
+            if self.K_onErr:
+                dOP -= self.Kp*(dErr/self.pvRange)
+            else:
+                dOP -= self.Kp*(dPv/self.pvRange)
+
+            # Derivative Action
+            dOP -= self.Kd*dDD/self.pvRange
+
+            self.op += dOP*self.opRange
+
+        self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
+        self._firstRun = False
+
 class OperatorProcess(AbstractProcess):
     '''
     Simulates operator control actions.
@@ -653,6 +804,36 @@ class BrownNoiseProcess(AbstractProcess):
     def run_for(self,dt):
         self.output += numpy.random.normal(0, self.rate*(dt/3600))
         self.output = min(self.limits[1],max(self.limits[0],self.output))
+
+class MathAddProcess(AbstractProcess):
+    '''
+    Adds inputs
+    
+    Simulation Parameters:
+    ----------------------
+    input_1 : Input
+    input_2 : Input
+
+    Simulation Outputs:
+    -------------------
+    output : input_1 + input_2
+    '''
+
+    @property
+    def output(self):
+        return self.input_1 + self.input_2
+    @output.setter
+    def output(self,value):
+        self.input_1 = self.input_2 = 0.5*value
+
+    def __init__(self):
+        super().__init__()
+
+        self.input_1 = 0
+        self.input_2 = 0
+
+    def run_for(self,dt):
+        pass
 
 
 
