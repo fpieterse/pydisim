@@ -323,6 +323,46 @@ class MixerProcess(AbstractProcess):
         else:
             self.Fout_xA = 0.5
 
+class FilterProcess(AbstractProcess):
+    '''
+    Exponential Filter
+    ------------------
+
+    Simulated Parameters:
+    ---------------------
+    t : Filter time (seconds)
+
+    Simulated Inputs:
+    -----------------
+    input : float
+        Process value [EU]
+
+    Simulated States:
+    -----------------
+    output : float
+        Filtered process value [EU]
+
+    '''
+
+    def __init__(self):
+        super().__init__()
+
+        self.t = 0.0
+        self._firstRun = True
+        
+        self.output = 0.0
+        self.input = 0.0
+
+    def run_for(self,dt):
+        if (self._firstRun):
+            self.output = self.input
+        self._firstRun = False
+
+        if self.t > 0.0:
+            f = numpy.exp(-dt/self.t)
+        else:
+            f = 0.0
+        self.output = f*self.output + (1-f)*self.input
     
 
 class PIDProcess(AbstractProcess):
