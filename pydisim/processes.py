@@ -418,9 +418,9 @@ class PIDProcess(AbstractProcess):
 
     '''
 
-    def get_pv(self):
+    def _get_pv(self):
         return self._nextPv
-    def set_pv(self,value,init=False):
+    def _set_pv(self,value,init=False):
         '''
         Used by pv property to set the pv. You can call it directly if you
         wish to initialise the error.
@@ -436,11 +436,11 @@ class PIDProcess(AbstractProcess):
         if init:
             self._lastPv = value
             self._lastDxDt = 0.0
-    pv = property(get_pv,set_pv)
+    pv = property(_get_pv,_set_pv)
 
-    def get_sp(self):
+    def _get_sp(self):
         return self._nextSp
-    def set_sp(self,value,init=False):
+    def _set_sp(self,value,init=False):
         '''
         Used by sp property to set the setpoint. You can call it directly if you
         wish to initialise the error.
@@ -456,7 +456,7 @@ class PIDProcess(AbstractProcess):
         if init:
             self._lastSp = value
             self._lastDxDt = value
-    sp = property(get_sp,set_sp)
+    sp = property(_get_sp,_set_sp)
             
 
     def __init__(self):
