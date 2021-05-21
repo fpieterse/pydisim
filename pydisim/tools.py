@@ -1,4 +1,178 @@
 import matplotlib.pyplot as plt
+import numpy
+import datetime
+import pandas
+
+from .processes import AbstractProcess
+
+
+class RecorderProcess(AbstractProcess):
+    # All recorders have the same starting time, set when the first one is
+    # created
+    def __init__(self,names,rec_int=0):
+        '''
+        Arguments:
+        ----------
+        names : list of strings
+            Names of inputs.  A parameter will be created on the class with this
+            name so you have to make sure it does not overwrite any existing
+            values.
+        rec_int : int
+            Minimum recording interval (seconds).
+        max_hist : float
+            Maximum recording duration (hours)
+        '''
+        super().__init__()
+        self.process_manager._recorders.append(self)
+        
+
+        self.names = names
+        self.rec_int = rec_int
+
+        for name in names:
+            try:
+                attr = getattr(self,name)
+                # if no error, we found the attribute
+                # TODO: Write test for this
+                raise Exception("Attribute " + name + " already exists")
+            except AttributeError:
+                setattr(self,name,numpy.nan)
+        self.last_t = 0
+
+        self.data = {name:[] for name in names}
+        self.timestamps = []
+
+
+    def run_for(self,dt):
+        # Recorder ignores dt, check process_manager to see where it is at
+        # This is to keep different recorder syncronised.
+
+        t = self.process_manager.simulation_time
+        if self.last_t + self.rec_int <= t:
+            self.timestamps.append(self.process_manager.simulation_start +
+                                   datetime.timedelta(seconds = t))
+            for name in self.data:
+                self.data[name].append( getattr(self,name) )
+
+            self.last_t = t
+
+    def plot(self,ax=None,subplots=False):
+        '''
+        Plot recorder's data on matplotlib axis ax
+
+        Arguments:
+        ----------
+        ax : matplotlib axis
+            Matlpotlib axis to plot data on
+        subplots : bool
+            Set to True to plot values as subplots. Only used if ax==None
+
+        '''
+
+        fig = None
+        if ax == None:
+            if subplots == True:
+                nr = len(self.data)
+                fig,ax = plt.subplots(nrows=nr,sharex=True)
+            else:
+                fig,ax = plt.subplots(1,1)
+        else:
+            subplots = False
+       
+        i = 0
+        for key in self.data:
+            if subplots:
+                _ax = ax[i]
+            else:
+                _ax = ax
+            _ax.plot(self.timestamps,self.data[key],label=key)
+            if subplots:
+                _ax.set_ylabel(key)
+            i += 1
+
+        if not subplots:
+            ax.legend()
+
+        if fig != None:
+            fig.tight_layout
+
+        
+
+    def clear(self,keep=None):
+        '''
+        Clear the recorded history
+
+        Arguments:
+        ----------
+        keep : int
+            Number of minutes to keep. If None the whole thing is cleared
+        '''
+        if keep is not None and (keep > 0):
+            if self.rec_int <= 0:
+                self.rec_int = 1
+            n_keep = int(keep * self.rec_int / 60)
+            for key in self.data:
+                # this does not raise OutOfRangeExceptionata
+                del self.data[key][:-n_keep]
+                del self.timestamps[:-n_keep]
+        else:
+            for key in self.data:
+                self.data[key].clear()
+                self.timestamps.clear()
+
+    def as_dataframe(self):
+        '''
+        Return data as pandas dataframe
+        '''
+        df = pandas.DataFrame(
+            index = self.timestamps,
+            data = self.data)
+        return df
+
+        
+
+
+class PIDRecorderProcess(RecorderProcess):
+    def __init__(self,loopname,PIDprocess,dt):
+        self.loopname=loopname
+        self.pid = PIDprocess
+        names = [ loopname+suf for suf in ['.sp','.pv','.op'] ]
+        super().__init__(names,dt)
+
+
+    def run_for(self,dt):
+        for par in ['sp','pv','op']:
+            name = self.loopname + '.' + par
+            setattr(self,name,getattr(self.pid,par))
+
+        super().run_for(dt)
+
+    def plot(self,ax=None):
+        if ax == None:
+            fig,ax = plt.subplots(1,1)
+
+        ax2 = ax.twinx()
+
+        lines = []
+       
+        lines += ax.plot(self.timestamps,
+                     self.data[self.loopname + '.pv'],
+                     label=self.loopname + '.pv')
+        lines += ax.plot(self.timestamps,
+                     self.data[self.loopname + '.sp'],
+                     label=self.loopname + '.sp')
+        lines += ax2.plot(self.timestamps,
+                     self.data[self.loopname + '.op'],
+                     label=self.loopname + '.op',
+                     c='C2')
+
+        labels = [line.get_label() for line in lines]
+        ax.legend(lines,labels)
+
+
+        ax.set_title(self.loopname)
+
+
 
 class Recorder:
     '''

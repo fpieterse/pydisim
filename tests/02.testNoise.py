@@ -15,49 +15,40 @@ import numpy
 
 import pydisim as pds
 
-main = pds.MainProcess()
+pm = pds.ProcessManager()
 bnp = pds.BrownNoiseProcess()
 gnp = pds.GaussNoiseProcess()
 fp = pds.FilterProcess()
 fp.t = f
 
-main.add_process(bnp)
-main.add_process(gnp)
-main.add_process(fp)
 
-main.add_connection(bnp,'output',gnp,'input')
-main.add_connection(gnp,'output',fp,'input')
+bnp.add_connection('output',gnp,'input')
+gnp.add_connection('output',fp,'input')
 
-rec = pds.tools.Recorder(['Brown','Gauss','Filter'])
+rec = pds.tools.RecorderProcess(['Brown','Gauss','Filter'])
+bnp.add_connection('output',rec,'Brown')
+gnp.add_connection('output',rec,'Gauss')
+fp.add_connection('output',rec,'Filter')
 
 # PLot random noise. Then do it again (need to see different noise)
 # THen do it again with seed to make sure we can seed the noise with numpy
 
-print("This is noise, the next plot must look different than this one")
-for i in range(100):
-    main.run_for(10)
-    rec.record(bnp.output,gnp.output,fp.output)
+print("Figure 1 is noise, the next plot must look different than this one")
+pm.run_process(5)
 
 rec.plot()
-plt.show()
-
 rec.clear()
 
-print("This is noise, it must be different than the first one but same as the next")
+print("Figure 2 is also noise, it must be different than the first one but same as the next")
 numpy.random.seed(0)
-for i in range(100):
-    main.run_for(10)
-    rec.record(bnp.output,gnp.output,fp.output)
+pm.run_process(5)
 
 rec.plot()
-plt.show()
 rec.clear()
 
-print("This noise must look the same as the previous one")
+print("Figure 3 must look the same as Figure 2.")
 numpy.random.seed(0)
-for i in range(100):
-    main.run_for(10)
-    rec.record(bnp.output,gnp.output,fp.output)
+pm.run_process(5)
 
 rec.plot()
 plt.show()

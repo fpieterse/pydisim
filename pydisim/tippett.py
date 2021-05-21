@@ -21,7 +21,10 @@ of the material.
 '''
 
 import math
-from .processes import AbstractProcess, MainProcess, PIDProcess
+from .processes import AbstractProcess, \
+                       PIDProcess, \
+                       ProcessManager, \
+                       GaussNoiseProcess
 
 class CSTRProcess(AbstractProcess):
     '''
@@ -43,19 +46,19 @@ class CSTRProcess(AbstractProcess):
     E1 : float
         Activation eneregy for A -> B (J/mol)
     H1 : float
-        Heat of reaction (J/mol)
+        Heat of reaction (kJ/mol)
     k2 : float
         Reaction rate for B -> C (1/hr)
     E2 : float
         Activation eneregy for B -> C (J/mol)
     H2 : float
-        Activation energy (J/mol)
+        Activation energy (kJ/mol)
     UA : float
-        Jacket heat transfer coefficient (W/K)
+        Jacket heat transfer coefficient (kW/K)
     Cp : float
-        Heat capacity in the reactor (J/kg/K)
+        Heat capacity in the reactor (kJ/kg/K)
     J_Cp : float
-        Heat capacity of jacket fluid (J/kg/K)
+        Heat capacity of jacket fluid (kJ/kg/K)
     rho : float
         Material density
     J_rho : float
@@ -115,7 +118,7 @@ class CSTRProcess(AbstractProcess):
 
         self.V = 1.0
         self.J_V = 0.1
-        self.UA = 2509.8
+        self.UA = 2.5098
 
         self.T = 25.0
         self.J_T = 25.0
@@ -135,13 +138,13 @@ class CSTRProcess(AbstractProcess):
 
         self.k1 = 9.97e6
         self.E1 = 5e4
-        self.H1 = -6e4
+        self.H1 = -6e1
         self.k2 = 9.0e6
         self.E2 = 6e4
-        self.H2 = -7e4
+        self.H2 = -7e1
 
-        self.Cp = 4200 
-        self.J_Cp = 4200 
+        self.Cp = 4.200
+        self.J_Cp = 4.200
         self.rho = 1000
         self.J_rho = 1000
 
@@ -190,24 +193,26 @@ class SeparatorProcess(AbstractProcess):
         Volume of separator
     rv_[A|B|C] : float
         Relative Volatility of species
-    Cp : float
-        Heat capacity (J/kg/K)
     rho : float
         Density (kg/m3)
+    Cp : float
+        Heat Capacity (kJ/kgK)
+    Tbp : float
+        Boiling Point (ÃÂ°C)
+    Hvap : float
+        Heat of Vaporisation (kJ/kg)
 
 
     Simulation Inputs:
     ------------------
     Q : float
-        Heat input to separator (W)
+        Heat input to separator (kW)
     Fin_F : float
-        Feed flowrate
+        Feed flowrate (m3/hr)
     Fin_T : float
         Feed temperature
     Fin_x[A|B] : float
         Feed composition
-    Ftop_F : float
-        Top product flowrate
 
 
     Simulated States:
@@ -216,7 +221,8 @@ class SeparatorProcess(AbstractProcess):
         Fractions of components A, B, C. Can only be set using the
         set_components function.
     T : float
-        Temperature (°C)
+        Temperature (ÃÂ°C)
+        
 
     Simulated Outputs:
     ------------------
@@ -224,6 +230,8 @@ class SeparatorProcess(AbstractProcess):
         Fraction of component C
     Ftop_x[A|B|C] : float
         Top product fractions
+    Ftop_F : float
+        Top product flowrate (m3/h)
     Fbot_F : float
         Bottom product flowrate
     '''
@@ -256,12 +264,14 @@ class SeparatorProcess(AbstractProcess):
         self.rv_A = 3.5
         self.rv_B = 1.0
         self.rv_C = 0.5
-        self.Cp = 4200
+        self.Cp = 4.2
         self.rho = 1000
+        self.Hvap = 2200
 
         self._xA = 0.4
         self._xB = 0.4
         self.T = 25
+        self.Tbp = 100
 
         self.Fin_F = 0.0
         self.Fin_T = 25
@@ -283,144 +293,233 @@ class SeparatorProcess(AbstractProcess):
     def run_for(self,dt):
         self._calculate_top_fractions()
 
+        dthr = dt/3600
+
+        dT = ( (self.Fin_F/self.V)*(self.Fin_T - self.T) +
+               (self.Q*3600)/(self.rho*self.Cp*self.V) )
+
+        # how much extra temperature above boiling point do we have
+        t_extra = dT*dthr - (self.Tbp - self.T)
+        if t_extra > 0:
+            self.T = self.Tbp
+            q_extra = t_extra*self.rho*self.Cp*self.V
+            self.Ftop_F = (q_extra/(self.Hvap*self.rho) ) /dthr
+            if self.Ftop_F > self.Fin_F:
+                self.Ftop_F = self.Fin_F
+        else:
+            self.T += dT*dthr
+            self.Ftop_F = 0
+
         dxA = ( (self.Fin_F/self.V)*(self.Fin_xA - self._xA) -
                 (self.Ftop_F/self.V)*(self.Ftop_xA - self._xA) )
 
         dxB = ( (self.Fin_F/self.V)*(self.Fin_xB - self._xB) -
                 (self.Ftop_F/self.V)*(self.Ftop_xB - self._xB) )
 
-        dT = ( (self.Fin_F/self.V)*(self.Fin_T - self.T) +
-               (self.Q*3600)/(self.rho*self.Cp*self.V) )
-
-        dthr = dt/3600
 
         self._xA += dxA*dthr
         self._xB += dxB*dthr
-        self.T += dT*dthr
+
+class TippettProcess(AbstractProcess):
+    '''
+    2 CSTR 1 Seperator process described by Tippett 2012.
+
+
+    Simulated Inputs:
+    -----------------
+    F1 : float
+        Fresh feed to rx1 (m3/h)
+    F2 : float
+        Fresh feed to rx2 (m3/h)
+    Q : float
+        Heat input to separator (kW)
+
+
+    Simulated Outputs:
+    ------------------
+    F3 : float
+        Feed from rx1 to rx2 (m3/h)
+    F4 : float
+        Feed to separator (m3/h)
+    F5 : float
+        Recycle flow (m3/h)
+    F6 : float
+        Product flow (m3/h)
+    x[A|B|C]_prod : float
+        Composition of product
+    Fprod : float
+        Flowrate of component B in product (m3/h)
+
+
+
+    SubProcesses:
+    -----------
+    rx1 : tippett.CSTRProcess
+        CSTR 1
+    rx2 : tippett.CSTRProcess
+        CSTR 2
+    sep : tippett.SepProcess
+        Seperator
+    tc01 : PIDProcess
+        CSTR1 temperature controller
+    tc02 : PIDProcess
+        CSTR2 temeperature controller
+        
+    '''
+
+    @property
+    def F1(self):
+        return self.rx1.F1_F
+    @F1.setter
+    def F1(self,value):
+        self.rx1.F1_F = value
+
+    @property
+    def F2(self):
+        return self.rx2.F1_F
+    @F2.setter
+    def F2(self,value):
+        self.rx2.F1_F = value
+
+    @property
+    def Q(self):
+        return self.sep.Q
+    @Q.setter
+    def Q(self,value):
+        self.sep.Q = value
+
+    @property
+    def F3(self):
+        return self.rx2.F2_F
+    @property
+    def F4(self):
+        return self.sep.Fin_F
+    @property
+    def F5(self):
+        return self.sep.Ftop_F
+    @property
+    def F6(self):
+        return self.sep.Fbot_F
+
+    @property
+    def xA_prod(self):
+        return self.sep.xA
+    @property
+    def xB_prod(self):
+        return self.sep.xB
+    @property
+    def xC_prod(self):
+        return self.sep.xC
+    @property
+    def Fprod(self):
+        return self.sep.xB * self.sep.Fbot_F
+
+
+    def __init__(self):
+        super().__init__()
+
+
+        # RX1
+
+        self.rx1 = CSTRProcess()
+        self.rx1.V = 1.0
+        self.rx1.J_V = 0.1
+        self.rx1.UA = 5.0
+
+        self.rx1.F1_F = 5.0
+        self.rx1.F1_T = 150.0
+        self.rx1.FJ_F = 0.5
+        self.rx1.FJ_T = 250
+        self.rx1.J_T = 190
+        self.rx1.T = 170
+
+        self.rx1.F2_F = 10.0
+        self.rx1.F2_T = 170
+
+        self.rx1.set_components(0.38,0.56)
+
+        # RX2
+
+        self.rx2 = CSTRProcess()
+        self.rx2.V = 0.5
+        self.rx2.J_V = 0.05
+        self.rx2.UA = 3.0
+
+        self.rx2.F1_F = 1.0
+        self.rx2.F1_T = 150.0
+        self.rx2.FJ_F = 0.5
+        self.rx2.FJ_T = 250
+        self.rx2.J_T = 175
+        self.rx2.T = 170
+
+        self.rx2.set_components(0.31,0.63)
+
+        self.rx1.add_connection('Fout_F',self.rx2,'F2_F')
+        self.rx1.add_connection('T',self.rx2,'F2_T')
+        self.rx1.add_connection('xA',self.rx2,'F2_xA')
+        self.rx1.add_connection('xB',self.rx2,'F2_xB')
+
+        # SEP
+
+        self.sep = SeparatorProcess()
+        self.sep.V = 1.0
+        self.sep.Q = 1000
+
+        self.sep.set_components(0.17,0.75)
+
+        self.rx2.add_connection('Fout_F',self.sep,'Fin_F')
+        self.rx2.add_connection('T',self.sep,'Fin_T')
+        self.rx2.add_connection('xA',self.sep,'Fin_xA')
+        self.rx2.add_connection('xB',self.sep,'Fin_xB')
+
+        self.sep.add_connection('Ftop_F',self.rx1,'F2_F')
+        self.sep.add_connection('T',self.rx1,'F2_T')
+        self.sep.add_connection('Ftop_xA',self.rx1,'F2_xA')
+        self.sep.add_connection('Ftop_xB',self.rx1,'F2_xB')
+
+        # TC01 : RX1 temperature controller
+        self.tc01 = PIDProcess()
+        self.tc01.sp = 155
+        self.tc01.opLimits = (0,10.0)
+        self.tc01.opRange = 10.0
+        self.tc01.pvRange = 20.0
+        self.tc01.K = 1.0
+        self.tc01.Ti = 400
+
+        self.rx1.add_connection('T',self.tc01,'pv')
+        self.tc01.add_connection('op',self.rx1,'FJ_F','<')
+
+        # TC01 : RX2 temperature controller
+
+        self.tc02 = PIDProcess()
+        self.tc02.sp = 170
+        self.tc02.opLimits = (0,10.0)
+        self.tc02.opRange = 10.0
+        self.tc02.pvRange = 20.0
+        self.tc02.K = 2.0
+        self.tc02.Ti = 300
+
+        self.rx2.add_connection('T',self.tc02,'pv')
+        self.tc02.add_connection('op',self.rx2,'FJ_F','<')
+
+
+    def run_for(self,dt):
+        # Process Manager will run all subprocess.
+        # If subprocess inputs are exposed, they will be connected here.
+        pass
+
 
 def CreateProcess():
     '''
     Creates the process described in Tippett (2012).
 
-    Returns a MainProcess instance with 2 CSTRs in series and a separator. PID
-    controllers are included to ensure stability.
+    Returns the ProcessManager and the TippettProcess
     '''
 
-    rx1 = CSTRProcess()
-    rx1.V = 1.0
-    rx1.J_V = 0.1
-    rx1.UA = 2509.8 
+    pm = ProcessManager(exec_int=5)
+    tp = TippettProcess()
+    pm.run_process(120)
 
-    rx1.F1_F = 5.0
-    rx1.F1_T = 150.0
-    rx1.FJ_F = 0.5
-    rx1.FJ_T = 280
-    rx1.J_T = 190
-    rx1.T = 170
+    return pm, tp
 
-    rx1.set_components(0.38,0.56)
-
-
-    rx2 = CSTRProcess()
-    rx2.V = 0.5
-    rx2.J_V = 0.05
-    rx2.UA = 2774
-
-    rx2.F1_F = 1.0
-    rx2.F1_T = 150.0
-    rx2.FJ_F = 0.2
-    rx2.FJ_T = 280
-    rx2.J_T = 175
-    rx2.T = 170
-
-    rx2.set_components(0.31,0.63)
-
-
-    sep = SeparatorProcess()
-    sep.V = 1.0
-    sep.Q = 20000
-    sep.T = 178
-
-    sep.Ftop_F = 10.0
-    rx1.F2_F = 10.0
-    rx1.F2_T = 178
-
-    sep.set_components(0.17,0.75)
-
-
-
-    # Separator bottoms B-Spec controller
-
-    xc02 = PIDProcess()
-    xc02.sp = 0.75
-    xc02.pvRange = 0.2
-    xc02.opRange = 10.0
-    xc02.opLimits = (0.0,10.0)
-    xc02.op = rx1.F1_F
-    xc02.K = -1.0
-    xc02.Ti = 800
-
-    tc01 = PIDProcess()
-    tc01.sp = 170
-    tc01.op = 0.5
-    tc01.opLimits = (0,2.0)
-    tc01.opRange = 2.0
-    tc01.pvRange = 20.0
-    tc01.K = 2.0
-    tc01.Ti = 1500
-
-    tc02 = PIDProcess()
-    tc02.sp = 170
-    tc02.op = 0.2
-    tc02.opLimits = (0,1.0)
-    tc02.opRange = 1.0
-    tc02.pvRange = 20.0
-
-
-    main = MainProcess()
-
-    main.add_process(rx1)
-    main.add_process(tc01)
-    main.add_process(rx2)
-    main.add_process(tc02)
-
-    main.add_process(sep)
-    main.add_process(xc02)
-
-
-    main.add_connection(rx1,'Fout_F',rx2,'F2_F')
-    main.add_connection(rx1,'T',rx2,'F2_T')
-    main.add_connection(rx1,'xA',rx2,'F2_xA')
-    main.add_connection(rx1,'xB',rx2,'F2_xB')
-
-    main.add_connection(rx1,'T',tc01,'pv')
-    main.add_connection(tc01,'op',rx1,'FJ_F')
-
-    main.add_connection(rx2,'Fout_F',sep,'Fin_F')
-    main.add_connection(rx2,'T',sep,'Fin_T')
-    main.add_connection(rx2,'xA',sep,'Fin_xA')
-    main.add_connection(rx2,'xB',sep,'Fin_xB')
-
-    main.add_connection(rx2,'T',tc02,'pv')
-    main.add_connection(tc02,'op',rx2,'FJ_F')
-    
-    main.add_connection(sep,'Ftop_F',rx1,'F2_F')
-    main.add_connection(sep,'T',rx1,'F2_T')
-    main.add_connection(sep,'Ftop_xA',rx1,'F2_xA')
-    main.add_connection(sep,'Ftop_xB',rx1,'F2_xB')
-
-    main.add_connection(sep,'xB',xc02,'pv')
-    main.add_connection(xc02,'op',rx1,'F1_F')
-
-    main.rx1 = rx1
-    main.rx2 = rx2
-    main.sep = sep
-    main.xc02 = xc02
-    main.tc01 = tc01
-    main.tc02 = tc02
-
-    for i in range(1000):
-        main.run_for(10)
-
-    return main
-
+# vim: fileencoding=utf-8

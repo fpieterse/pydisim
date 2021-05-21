@@ -1,22 +1,123 @@
 '''
-This file contains descriptions of processes that can be used to create large
-systems by connecting the processes. There is an AbstractProcess from which all
-processes derive. The requirement for a Process is to have a _connectionInfo
-array that the MainProcess will use to record which downstream processes to
-update after executing a processs. A Process must also define a run_for function
-that performs calculations when the process is run.
+This library component contains descriptions of processes that can be used to
+create large systems of connected processes.
 
-The MainProcess class allows you to connect multiple processes together. The way
-this class connects the outputs from one class to another expects the values it
-connects to be scalars. This is a limitation because we can't specify an
-arbitrary number of input streams for things like the MixerProcess. It will be
-nice to define a standard stream class that contains composition, flowrate,
-temperature, and pressure but this puts more requirements on the subprocesses to
-handle all these properties. The idea is to create simple processes. The
-downside is that all processes are not necesarilly compatible.
+The libary defines an AbstractProcess from which all
+processes derive. You can create custom processes by subclassing the
+AbstractProcess class and defining the run_for function.  Some simple processes
+are also defined.
+
+The ProcessManager class will run all the processes in the order they were
+created and manage connections between the processes.
 '''
 
 import numpy # for noise
+import re
+import datetime
+
+
+def _write_connection(upstream_process,upstream_name,upstream_index,
+                      downstream_process,downstream_name,downstream_index):
+    '''
+    Write an attribute from upstream process to downstream process.
+
+    This function is used by the AbstractProcess to update downstream processes
+    during execution and it is used to initialise connections when connection
+    are created (which sometimes go in the other direction).
+
+    Parameters:
+    -----------
+    upstream_process : AbstractProcess
+        Source process of connection
+
+    upstream_name : string
+        Name of attribute that is source of connection
+
+    upstream_index : integer, None
+        If upstream attribute is a list, upstream_index indicates the index
+        of the source attribute to write to the downstream process.
+        If upstream attribute is scalar then upstream_index must be None.
+
+    downstream_process: AbstractProcess
+        Sink process of connection
+
+    downstream_name : string
+        Name of attribute that is sink of connection
+
+    downstream_index : integer, None
+        See upstream_index.
+
+    '''
+
+    out_value = getattr(upstream_process,upstream_name)
+    if upstream_index != None:
+        out_value = out_value[upstream_index]
+
+    if downstream_index != None:
+        in_value = getattr(downstream_process,
+                           downstream_name)
+        in_value[downstream_index] = out_value
+    else:
+        setattr(downstream_process,
+                downstream_name,
+                out_value)
+
+_last_process_manager = None
+def get_process_manager():
+    '''
+    Return the last process manager created.
+    Creates a new one if it has not been created
+
+    '''
+    global _last_process_manager
+    if _last_process_manager == None:
+        _last_process_manager = ProcessManager()
+
+    return _last_process_manager
+
+class ProcessManager:
+    '''
+    Class to manage subprocesses.
+
+    '''
+    def __init__(self,exec_int=5):
+        '''
+        Parameters:
+        -----------
+        exec_int : integer
+            Duration of process simulation iterations in seconds.
+        '''
+        self.exec_int = exec_int
+        self._subprocesses = []
+        self._recorders = []
+
+        self.simulation_start = datetime.datetime.now()
+        self.simulation_time = 0
+
+        global _last_process_manager
+        _last_process_manager = self
+
+    def run_process(self,duration):
+        '''
+        Parameters:
+        -----------
+        duration : int
+            Duration to run process for in minutes
+        '''
+        t_end = self.simulation_time + 60*duration
+        while True:
+            self.simulation_time += self.exec_int
+            for p in self._subprocesses:
+                p._execute(self.exec_int)
+
+            if self.simulation_time >= t_end:
+                break
+
+
+    def clear_recorders(self,keep=None):
+        for rec in self._recorders:
+            rec.clear(keep)
+            
 
 class AbstractProcess:
     '''
@@ -32,52 +133,59 @@ class AbstractProcess:
 
     '''
 
-    def __init__(self):
-        # Record of connection info used by MainProcess
-        # This will be a list of tuples of the form
-        # (outputName, downstreamProcess, downstreamInputName)
+    _array_num_re = re.compile('(.*)\[([0-9]*)\]$')
+
+    def __init__(self,process_manager=None):
+        # Record of connection info.
+        # This is a list of dictionaries that define connection information
         self._connectionInfo = []
+
+        if process_manager == None:
+            process_manager = get_process_manager()
+
+        process_manager._subprocesses.append(self)
+        self.process_manager = process_manager
+
+    def _execute(self,dt):
+        self.run_for(dt)
+
+        # TODO: Write a test for this
+        for ci in self._connectionInfo:
+            _write_connection(self,ci['output_name'],ci['output_index'],
+                              ci['downstream_process'],
+                              ci['input_name'], ci['input_index'])
 
     def run_for(self,dt):
         '''
         Run process for dt seconds.
+
+        Must be implemented on inheriting classes
+        
         '''
-        # Must be implemented
         raise NotImplementedError
 
-class MainProcess(AbstractProcess):
-    '''
-    The main process represents a collection of subprocesses and their
-    connections and relationships
-    '''
-    def __init__(self):
-        super().__init__()
-        self._subProcesses = []
 
-    def add_process(self,process):
+    def add_connection(self,
+                       output_name,
+                       downstream_process,
+                       input_name,
+                       init=None):
         '''
-        Adds a process to the list of processes
-        '''
-        self._subProcesses.append(process)
+        Add a connection to a dowstream process. When this process is run, the
+        results will be updated in the downstream process.
 
-    def add_connection(self,upstreamProcess,
-                           upstreamProcessOutput,
-                           downstreamProcess,
-                           downstreamProcessInput,
-                           init=None):
-        '''
-        Connects output parameter of one process to another one
-
-        Parameters
-        ----------
-        upstreamProcess : AbstractProcess
-            A subprocess to read results from
-        upstreamProcessOutput : string
-            Name of output of upstream process
-        downstreamProcess : AbstractProcess
-            A process to write results to
-        downstreamProcessOutput : string
-            Name of input of downstream process
+        Parameters:
+        -----------
+        output_name : string
+            Name of output to connect, output is accessed using getattr
+            function.
+            If the output is an array, an element can be specified e.g.
+            "output[0]".
+            If the input and outputs are lists or tuples they will be set equal.
+        downstream_process : AbstractProcess
+            Downstream process to connect to
+        input_name : string
+            Name of parameter on downstream process to write output to.
         init : string
             A string indicating how to initialise values
             <    : Initialise upstream value to equal downstream value.
@@ -90,30 +198,69 @@ class MainProcess(AbstractProcess):
                    processes that are part of a recycle.
             None : (Default) no initialisation
         '''
-        upstreamProcess._connectionInfo.append(
-            (upstreamProcessOutput,
-             downstreamProcess,
-             downstreamProcessInput))
+        output_index = None
+        input_index = None
+
+        m = self._array_num_re.match(output_name)
+        if m:
+            output_name = m.group(1)
+            output_index = int(m.group(2))
+        m = self._array_num_re.match(input_name)
+        if m:
+            input_name = m.group(1)
+            input_index = int(m.group(2))
+
+        _output = getattr(self,output_name)
+        _input = getattr(downstream_process,input_name)
+        
+        # If both indexes are None, check if it arrays, if so set them equal and
+        # return.
+        # If index not None (a number) and the value is out of range, raise
+        # exception
+
+        if (output_index == None) and (input_index == None):
+            if ((type(_output) == list) and (type(_input) == list)) or \
+               ((type(_output) == tuple) and (type(_input) == tuple)):
+                if len(_output) == len(_input):
+                    if init == '<':
+                        setattr(self,output_name,_input)
+                    else:
+                        setattr(downstream_process,input_name,_output)
+                    return
+                else:
+                    raise Exception("Cannot connect lists of different lengths")
+            elif (type(_output) == numpy.ndarray) and (type(_input) == numpy.ndarray):
+                if _output.shape == _input.shape:
+                    if init == '<':
+                        setattr(self,output_name,_input)
+                    else:
+                        setattr(downstream_process,input_name,_output)
+                    return
+                else:
+                    raise Exception("Cannot connect ndarrays of different shapes")
+        elif (output_index != None) and (output_index >= len(_output)):
+            raise Exception("Index out of range on output " + output_name)
+        elif (input_index != None) and (input_index >= len(_input)):
+            raise Exception("Index out of range on input " + input_name)
+
 
         if init == "<":
-            setattr(upstreamProcess,upstreamProcessOutput,
-                    getattr(downstreamProcess,downstreamProcessInput))
+            _write_connection(downstream_process,input_name,input_index,
+                              self,output_name,output_index)
         elif init == ">":
-            setattr(downstreamProcess,downstreamProcessInput,
-                    getattr(upstreamProcess,upstreamProcessOutput))
+            _write_connection(self,output_name,output_index,
+                              downstream_process,input_name,input_index)
 
+        conn_info = {'downstream_process':downstream_process,
+                     'output_name':output_name,
+                     'input_name':input_name,
+                     'output_index':output_index,
+                     'input_index':input_index,
+                    }
 
-    def run_for(self,dt):
-        '''
-        Run main process for dt seconds.
-        This involves running each subprocess (in the order they were added to
-        the main process) and then writing that subprocess' outputs to the
-        relevant downstream processes.
-        '''
-        for proc in self._subProcesses:
-            proc.run_for(dt)
-            for c in proc._connectionInfo:
-                setattr(c[1],c[2],getattr(proc,c[0]))
+        self._connectionInfo.append(conn_info)
+
+            
 
 
 class HoldupProcess(AbstractProcess):
@@ -125,19 +272,19 @@ class HoldupProcess(AbstractProcess):
     Parameters:
     -----------
     vol : float
-        volume of vessel (m3)
+        volume of vessel (EU)
 
     Simulated Inputs:
     -----------------
     fIn : float
-        flow into tank (m3/hr)
+        flow into tank (EU/hr)
     fOut : float
-        flow out of tank (m3/hr)
+        flow out of tank (EU/hr)
         
     Simulated States:
     -----------------
     cVol : float
-        volume of tank contents (vol*level/100) (m3)
+        volume of tank contents (vol*level/100) (EU)
     level : float
         liquid level in tank (%)
 
@@ -277,6 +424,7 @@ class SepProcess(AbstractProcess):
             else:
                 self.cVol -= v_bot
 
+
 class MixerProcess(AbstractProcess):
     '''
     Mixes streams. Calculates the composition and flowrate of mixture.
@@ -323,6 +471,7 @@ class MixerProcess(AbstractProcess):
         else:
             self.Fout_xA = 0.5
 
+
 class FilterProcess(AbstractProcess):
     '''
     Exponential Filter
@@ -363,7 +512,8 @@ class FilterProcess(AbstractProcess):
         else:
             f = 0.0
         self.output = f*self.output + (1-f)*self.input
-    
+        
+
 
 class PIDProcess(AbstractProcess):
     '''
@@ -380,11 +530,11 @@ class PIDProcess(AbstractProcess):
         Integral Time (seconds) (default (1000.0)
     Td: float
         Derivative Time (seconds) (default (0.0)
-    PVRange : float
+    pvRange : float
         PV range used for scaling (default 100)
-    OPRange : float
+    opRange : float
         OP range used for scaling (default 100)
-    OPLimits : (float,float)
+    opLimits : (float,float)
         OP output limits  (default (0,100))
     K_onErr : bool
         Calculate proportional action on Error. Set to false to calculate on PV
@@ -394,6 +544,10 @@ class PIDProcess(AbstractProcess):
         (default = false)
     man : bool
         Manual mode (default = false). In manual mode the execution is skipped
+    pvtrack : bool
+        If true, sp is set equal to pv if man is true.
+    non_interacting : bool
+        If true, use non-interacting form (Ki = 1/Ti, Kd = 1*Td)
 
     Simulated Inputs:
     -----------------
@@ -413,14 +567,12 @@ class PIDProcess(AbstractProcess):
     op : float
         Output [EU].
         
-    Simulated Outputs: 
-    ------------------
 
     '''
 
-    def _get_pv(self):
+    def get_pv(self):
         return self._nextPv
-    def _set_pv(self,value,init=False):
+    def set_pv(self,value,init=False):
         '''
         Used by pv property to set the pv. You can call it directly if you
         wish to initialise the error.
@@ -436,11 +588,11 @@ class PIDProcess(AbstractProcess):
         if init:
             self._lastPv = value
             self._lastDxDt = 0.0
-    pv = property(_get_pv,_set_pv)
+    pv = property(get_pv,set_pv)
 
-    def _get_sp(self):
+    def get_sp(self):
         return self._nextSp
-    def _set_sp(self,value,init=False):
+    def set_sp(self,value,init=False):
         '''
         Used by sp property to set the setpoint. You can call it directly if you
         wish to initialise the error.
@@ -456,7 +608,7 @@ class PIDProcess(AbstractProcess):
         if init:
             self._lastSp = value
             self._lastDxDt = value
-    sp = property(_get_sp,_set_sp)
+    sp = property(get_sp,set_sp)
             
 
     def __init__(self):
@@ -482,8 +634,10 @@ class PIDProcess(AbstractProcess):
 
         self.op = 0.0
 
-        self.man = False
+        self.pvtrack = False
+        self.non_interacting = False
 
+        self.man = False
 
     def run_for(self,dt):
         if (self._firstRun):
@@ -496,6 +650,7 @@ class PIDProcess(AbstractProcess):
 
         self._lastPv = self._nextPv
         self._lastSp = self._nextSp
+
 
         if not self.man:
             # For derivative action we must calculate the rate of change of the
@@ -512,7 +667,11 @@ class PIDProcess(AbstractProcess):
             # everything is negative
 
             # Integral Action
-            dOP = -dt*(self.K/self.Ti)*(self._nextPv - self._nextSp)/self.pvRange
+            if self.non_interacting:
+                Ki = 1/self.Ti
+            else:
+                Ki = self.K/self.Ti
+            dOP = -dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
 
             # Proportional Action
             if self.K_onErr:
@@ -521,16 +680,25 @@ class PIDProcess(AbstractProcess):
                 dOP -= self.K*(dPv/self.pvRange)
 
             # Derivative Action
-            dOP -= self.K*self.Td*dDD/self.pvRange
+            if self.non_interacting:
+                Kd = self.Td
+            else:
+                Kd = self.K* self.Td
+            dOP -= Kd*dDD/self.pvRange
 
             self.op += dOP*self.opRange
+        else:
+            if self.pvtrack:
+                self.set_sp(self._nextPv,init=True)
 
         self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
         self._firstRun = False
+        
+
 
 class NiPIDProcess(AbstractProcess):
     '''
-    Non-Interacting PID controller
+    Deprecated, use PIDProcess with non_interacting = true
 
     Simulated Parameters:
     ---------------------
@@ -679,6 +847,8 @@ class NiPIDProcess(AbstractProcess):
         self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
         self._firstRun = False
 
+
+
 class OperatorProcess(AbstractProcess):
     '''
     Simulates operator control actions.
@@ -742,6 +912,77 @@ class OperatorProcess(AbstractProcess):
             self.tNext = numpy.random.uniform()*self.reactionTime[1]
 
         self.op = max(self.opRange[0],min(self.opRange[1],self.op))
+        
+
+class ValveCharProcess(AbstractProcess):
+    '''
+    Simulates effect of a non-linear field actuator.
+    Equal percentage valves are installed to make processes that have a
+    non-linear characteristic, linear.  Sometimes equal percentage valves are
+    installed in the wrong place and the valve introduces non-linearities to the
+    system.
+
+    Example: Centrifugal pump with flow controller at outlet.  This is an
+    example where you should use an equal percentage valve.  To simulate the
+    effect of an installed linear valve use 'quick-opening' characteristic'
+
+    Simulated Parameters:
+    ---------------------
+    form : string ('linear','equal-percentage','quick-opening')
+           lamda function
+        Form of non-linearity.  Let l be controller output and f be effective
+        output in field.
+            linear : f = l
+            equal-percentage : f = R^(l-1)
+            quick-opening: f = sqrt(l)
+            quick-opening-s: f = (l)*(1/s)
+        You can also pass a lambda function as the form.  The function should
+        convert an input value of range 0 to 1 to an output in range 0 to 1, the
+        input will be scaled with opRange before passed to the lambda function.
+    R : float
+        Characteristing for equal-percentage, usually between 20 and 50 (default 50)
+    s : float
+        Tunable characteristic for quick-opening-s, if s=2 then it is equivalent
+        to quick-opening
+    opRange : float
+        Output range (default 100)
+
+    Simulated Inputs:
+    -----------------
+    input : float
+        Controller output
+
+    Simulated Outputs:
+    ------------------
+    out : float
+        Valve position
+    '''
+
+
+    def __init__(self,form='linear'):
+        super().__init__()
+        self.R=50.0
+        self.s=2.0
+        self.opRange=100
+        self.form = form
+
+        self.input = 0.0
+        self.out = 0.0
+
+    def run_for(self,dt):
+        if callable(self.form):
+            self.out = self.opRange * self.form(self.input/self.opRange)
+        elif self.form == 'linear':
+            self.out = self.input
+        elif self.form == 'equal-percentage':
+            self.out = self.opRange * self.R**((self.input/self.opRange)-1)
+        elif self.form == 'quick-opening':
+            self.out = self.opRange * numpy.sqrt(self.input/self.opRange)
+        elif self.form == 'quick-opening-s':
+            self.out = self.opRange * (self.input/self.opRange)**(1/self.s)
+        else:
+            raise Exception('Unidentified characteristic: ' + self.form)
+
 
 class SplitRangeProcess(AbstractProcess):
     '''
@@ -845,32 +1086,38 @@ class BrownNoiseProcess(AbstractProcess):
         self.output += numpy.random.normal(0, self.rate*(dt/3600))
         self.output = min(self.limits[1],max(self.limits[0],self.output))
 
+
 class MathAddProcess(AbstractProcess):
     '''
     Adds inputs
     
     Simulation Parameters:
     ----------------------
-    input_1 : Input
-    input_2 : Input
+    input : list
+        input values
 
     Simulation Outputs:
     -------------------
-    output : input_1 + input_2
+    output : sum of inputs
     '''
 
     @property
     def output(self):
-        return self.input_1 + self.input_2
+        return sum(self.input)
     @output.setter
     def output(self,value):
-        self.input_1 = self.input_2 = 0.5*value
+        for i in range(len(self.input)):
+            self.input[i] = value/len(self.input)
 
-    def __init__(self):
+    def __init__(self,n_inputs=3):
+        '''
+        Parameters:
+        -----------
+        n_inputs: number of inputs
+        '''
         super().__init__()
 
-        self.input_1 = 0
-        self.input_2 = 0
+        self.input = [0.0]*n_inputs
 
     def run_for(self,dt):
         pass

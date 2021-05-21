@@ -171,6 +171,10 @@ assert mix.Fout_xA == 0.625
 # that the final state is at setpoint. I also track the turning points and
 # maximum level and flow output to confirm this works as expected
 #-----------------------------------------------------------------------------
+
+# Create a new process manager
+pm = ProcessManager()
+
 tk001 = HoldupProcess()
 tk001.fIn = 1.5
 tk001.fOut = 0.0 # will overwrite in initialisation
@@ -193,16 +197,11 @@ lc002.opRange = 2.0
 lc002.opLimits = (0,2.0)
 lc002.sp = 50
 
-proc = MainProcess()
-proc.add_process( tk001 )
-proc.add_process( lc001 )
-proc.add_process( tk002 )
-proc.add_process( lc002 )
-proc.add_connection(tk001,'fOut',tk002,'fIn','<')
-proc.add_connection(tk001,'level',lc001,'pv','>')
-proc.add_connection(lc001,'op',tk001,'fOut','<')
-proc.add_connection(tk002,'level',lc002,'pv')
-proc.add_connection(lc002,'op',tk002,'fOut','<')
+tk001.add_connection('fOut',tk002,'fIn','<')
+tk001.add_connection('level',lc001,'pv','>')
+lc001.add_connection('op',tk001,'fOut','<')
+tk002.add_connection('level',lc002,'pv')
+lc002.add_connection('op',tk002,'fOut','<')
 
 assert tk001.fOut == 1.0
 assert lc001.pv == 50.0
@@ -211,14 +210,20 @@ assert lc002.pv == 0.0
 assert lc002.op == 1.0
 
 t = 0
-dt = 60
+# First test ran process at 60 second steps and checked at which point in the
+# execution the maximum value is observed (if dynamics are not affected then the
+# point should be the same).  With the introduction of the ProcessManager, I now
+# execute the process manager at 60 sec scan time and run it for one minute at a
+# time (so it does one execution).
+pm.exec_int = 60
 maxOp = 0
 maxOpT = 0
 maxLvl = 0.0
 maxLvlT = 0
 for i in range(500):
     t += dt
-    proc.run_for(dt)
+    #Run process for one minute (at default 5 sec interval)
+    pm.run_process(1)
 
     if (tk001.level > maxLvl):
         maxLvlT = t
