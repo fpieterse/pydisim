@@ -1062,7 +1062,7 @@ class BrownNoiseProcess(AbstractProcess):
     '''
     Simulates process noise. Process noise is Brown noise (I think) (I think
     process noise is brown noise and I think what I did here is brown noise, but
-    I won't bet money on it.
+    I won't bet money on it.)
 
     Simulation Parameters:
     ----------------------
@@ -1085,6 +1085,50 @@ class BrownNoiseProcess(AbstractProcess):
     def run_for(self,dt):
         self.output += numpy.random.normal(0, self.rate*(dt/3600))
         self.output = min(self.limits[1],max(self.limits[0],self.output))
+
+
+class SinNoiseProcess(AbstractProcess):
+    '''
+    Add a sinusoid noise signal to input
+    
+    Simulation Parameters:
+    ----------------------
+    amplitude : Amplitude of sine wave (EU)
+    period    : Period if sine wave (seconds)
+
+    Simulation Inputs:
+    input     : Process Input (EU)
+
+    Simulation Outputs:
+    -------------------
+    output    : Output (noise + input)
+
+    '''
+
+    @property
+    def output(self):
+        return self.input + numpy.sin(self._x)
+    @output.setter
+    def output(self,value):
+        self.input = value - numpy.sin(self._x)
+
+
+    def __init__(self,period=60,amplitude=1):
+        super().__init__()
+        self.period = period
+        self.amplitude = amplitude
+        self._x = 0
+        self.input = 0
+
+    def run_for(self,dt):
+        self._x += (dt/self.period)*2*numpy.pi
+
+        
+        
+        
+
+
+
 
 
 class MathAddProcess(AbstractProcess):

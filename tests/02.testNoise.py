@@ -15,6 +15,45 @@ import numpy
 
 import pydisim as pds
 
+#-----------------------------------------------------
+# Sin
+#-----------------------------------------------------
+pm = pds.ProcessManager(exec_int=1)
+swp = pds.SinNoiseProcess(amplitude=5,period=120)
+rec = pds.RecorderProcess(['Input','Output'])
+
+swp.add_connection('input',rec,'Input')
+swp.add_connection('output',rec,'Output')
+
+# Check that inputs and outputs initiallises correctly
+swp.output = 5
+assert swp.input == 5
+swp.input = 0
+assert swp.output == 0
+
+# check that sin wave works
+pm.run_process(0.5) #run for 30 seconds
+sin30 = numpy.sin(0.5*numpy.pi)
+print(sin30)
+print(swp.output)
+assert swp.output == sin30
+swp.input = 1
+assert swp.output == sin30+1
+
+# check that if we change the period the output doesn't bump
+swp.period = 60
+assert swp.output == sin30+1
+pm.run_process(1) #Run for 1 minute
+assert swp.output == sin30+1
+
+rec.plot()
+plt.show()
+
+
+
+#-----------------------------------------------------
+# Noise and Filters
+#-----------------------------------------------------
 pm = pds.ProcessManager()
 bnp = pds.BrownNoiseProcess()
 gnp = pds.GaussNoiseProcess()
