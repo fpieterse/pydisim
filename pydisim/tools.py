@@ -133,11 +133,11 @@ class RecorderProcess(AbstractProcess):
 
 
 class PIDRecorderProcess(RecorderProcess):
-    def __init__(self,loopname,PIDprocess,dt):
+    def __init__(self,loopname,PIDprocess,rec_int=0):
         self.loopname=loopname
         self.pid = PIDprocess
         names = [ loopname+suf for suf in ['.sp','.pv','.op'] ]
-        super().__init__(names,dt)
+        super().__init__(names,rec_int)
 
 
     def run_for(self,dt):
@@ -171,6 +171,7 @@ class PIDRecorderProcess(RecorderProcess):
 
 
         ax.set_title(self.loopname)
+
 
 
 

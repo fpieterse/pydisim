@@ -668,7 +668,7 @@ class PIDProcess(AbstractProcess):
 
             # Integral Action
             if self.non_interacting:
-                Ki = 1/self.Ti
+                Ki = (self.K/abs(self.K))/self.Ti
             else:
                 Ki = self.K/self.Ti
             dOP = -dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
@@ -1107,10 +1107,10 @@ class SinNoiseProcess(AbstractProcess):
 
     @property
     def output(self):
-        return self.input + numpy.sin(self._x)
+        return self.input + self.amplitude*numpy.sin(self._x)
     @output.setter
     def output(self,value):
-        self.input = value - numpy.sin(self._x)
+        self.input = value - self.amplitude*numpy.sin(self._x)
 
 
     def __init__(self,period=60,amplitude=1):
