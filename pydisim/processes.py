@@ -1169,4 +1169,69 @@ class MathAddProcess(AbstractProcess):
 
 
 
+class SelectProcess(AbstractProcess):
+    '''
+    Selects an input as the output based on selection criteria.
+
+    Simulation Parameters:
+    ----------------------
+    input : list
+        Input values
+    seltype : string
+        Selection Type
+        hi     : select minimum of inputs
+        lo     : select maximum of inputs
+        median : select median, if even number of inputs, select avg of middle
+                 two inputs
+    rate : Rate at which output is ramped to selected input [EU/sec].
+
+    Simulation States:
+    ------------------
+    output : Output
+
+    '''
+
+    @property
+    def output(self):
+        return self._output
+
+    @output.setter
+    def output(self,value):
+        self._output = value
+        for i in range(len(self.input)):
+            self.input[i] = value
+
+    def __init__(self,n_inputs=2):
+        '''
+        Parameters:
+        -----------
+        n_inputs : numper of inputs
+        '''
+        super().__init__()
+        self.input = [0.0]*n_inputs
+        self.seltype = 'hi'
+        self.rate = float('inf')
+
+        self._output = 0
+
+    def run_for(self,dt):
+        out = None
+        if self.seltype == 'hi':
+            out = max(self.input)
+        elif self.seltype == 'lo':
+            out = min(self.input)
+        elif self.seltype == 'median':
+            out = numpy.median(self.input)
+        else:
+            raise Exception("Unknown seltype {}".format(self.seltype))
+
+
+        self._output = min(
+                         max(out,  self._output - self.rate*dt),
+                         self._output + self.rate*dt
+                       )
+
+
+            
+        
 

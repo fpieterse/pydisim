@@ -166,6 +166,35 @@ mix.run_for(1)
 assert mix.Fout_F == 8
 assert mix.Fout_xA == 0.625
 
+
+#---- SELECTOR----------------------------------------------------------------
+
+sel = SelectProcess(n_inputs=5)
+assert len(sel.input) == 5
+sel.input[0] = 1
+sel.input[1] = 99
+sel.input[2] = -10
+sel.input[3] = 8
+sel.input[4] = 5
+
+sel.seltype = 'hi'
+sel.run_for(1)
+assert sel.output == 99
+
+sel.seltype = 'lo'
+sel.run_for(1)
+assert sel.output == -10
+
+sel.seltype = 'median'
+sel.run_for(1)
+assert sel.output == 5
+
+# setting sel.output will overwrite the inputs
+sel._output = 0
+sel.rate = 1
+sel.run_for(1)
+assert sel.output == 1
+
 #---- Tank level control -----------------------------------------------------
 # Run a tank with a level controller with fixed tuning for a while and confirm
 # that the final state is at setpoint. I also track the turning points and
