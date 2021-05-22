@@ -14,6 +14,7 @@ created and manage connections between the processes.
 import numpy # for noise
 import re
 import datetime
+import scipy
 
 
 def _write_connection(upstream_process,upstream_name,upstream_index,
@@ -536,6 +537,10 @@ class PIDProcess(AbstractProcess):
         OP range used for scaling (default 100)
     opLimits : (float,float)
         OP output limits  (default (0,100))
+    oplo : float
+        OP Low Limit. Sets the first element in opLimits
+    ophi : float
+        OP high Limit. Sets the second element in opLimits
     K_onErr : bool
         Calculate proportional action on Error. Set to false to calculate on PV
         (default = false)
@@ -609,6 +614,20 @@ class PIDProcess(AbstractProcess):
             self._lastSp = value
             self._lastDxDt = value
     sp = property(get_sp,set_sp)
+
+    @property
+    def oplo(self):
+        return self.opLimits[0]
+    @oplo.setter
+    def oplo(self,value):
+        self.opLimits = (value, self.opLimits[1])
+
+    @property
+    def ophi(self):
+        return self.opLimits[1]
+    @ophi.setter
+    def ophi(self,value):
+        self.opLimits = (self.opLimits[0],value)
             
 
     def __init__(self):
@@ -1234,4 +1253,82 @@ class SelectProcess(AbstractProcess):
 
             
         
+class PLTProcess(AbstractProcess):
+    '''
+    Piecewise Linear Transform
+    Input is transformed across piecewise linear function
+
+    Simulation Parameters:
+    ----------------------
+    ipLimits : (float,float)
+               Input limits.  Input is clamped to these limits
+    opLimits : (float,float)
+               Output limits. Output is clamped to these limits
+
+    Note: See set_transform function for definition of transform
+
+    Simulation Inputs:
+    ------------------
+    input
+
+    Simulation Outputs:
+    -------------------
+    output
+    '''
+
+    @property
+    def output(self):
+        x = max(self.ipLimits[0],min(self.ipLimits[1],self.input))
+        y = self._transform(x)
+        y = max(self.opLimits[0],min(self.opLimits[1],y))
+        return self._transform(self.input)
+
+    @output.setter
+    def output(self,value):
+        y = max(self.opLimits[0],min(self.opLimits[1],value))
+        x = self._revTransform(y)
+        self.input = max(self.ipLimits[0],min(self.ipLimits[1],x))
+
+    def set_transform(self,X,Y):
+        '''
+        Set the transform. A scipy.interp.interp1d function is created from
+        input- and output transfroms.
+
+        Parameters:
+        -----------
+        X : list.  Input coordinates. Must be monotonically increasing.
+        Y : list.  Output coordinates. Initialisation of output is unpredictable
+                   if not monotonically increasing order.
+        '''
+
+        self._transform = scipy.interpolate.interp1d(
+            x=X,
+            y=Y,
+            fill_value='extrapolate',
+            assume_sorted=True,
+        )
+        self._revTransform = scipy.interpolate.interp1d(
+            x=Y,
+            y=X,
+            fill_value='extrapolate',
+            assume_sorted=True
+        )
+
+        
+    def __init__(self):
+        super().__init__()
+
+        self.input = 50
+
+        self.ipLimits = (-float('inf'),float('inf'))
+        self.opLimits = (-float('inf'),float('inf'))
+
+        self.set_transform([0,100],[0,100])
+
+
+    def run_for(self,dt):
+        pass
+
+
+
 
