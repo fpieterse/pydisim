@@ -19,20 +19,21 @@ dt.output = 5
 assert dt.input == 5
 
 dt.input = 3
-assert dt.history == [5,3]
-assert dt.t == [0,0]
+assert dt.history == [3]
+assert dt.t == [0]
 
 dt.run_for(1)
-assert dt.t == [1,1]
+assert dt.t == [1,0]
 
 dt.input = 2
 dt.run_for(2)
-assert dt.t == [3,3,2]
+assert dt.t == [3,2,0]
 
 
 dt.run_for(7)
-assert dt.t == [10,9]
-assert dt.history == [3,2]
+print(dt.t)
+assert dt.t == [10,9,7,0]
+assert dt.history == [3,2,2,2]
 assert dt.output == 3
 
 dt.run_for(1)
@@ -42,8 +43,6 @@ assert dt.output == 2
 
 dt.input = 5
 dt.run_for(1)
-print(dt.t)
-print(dt.history)
 assert dt.output == 2
 
 

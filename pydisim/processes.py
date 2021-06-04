@@ -574,8 +574,7 @@ class DeadtimeProcess(AbstractProcess):
         return self.history[-1]
     @input.setter
     def input(self,value):
-        self.history.append(value)
-        self.t.append(0)
+        self.history[-1] = value
 
 
     def __init__(self,deadtime=0):
@@ -596,6 +595,8 @@ class DeadtimeProcess(AbstractProcess):
                 self.history = self.history[-i:]
                 break
             i += 1
+        self.history.append(self.input)
+        self.t.append(0)
 
 
 class PIDProcess(AbstractProcess):
