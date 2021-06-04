@@ -473,10 +473,11 @@ class MixerProcess(AbstractProcess):
             self.Fout_xA = 0.5
 
 
-class FilterProcess(AbstractProcess):
+
+class FirstOrderProcess(AbstractProcess):
     '''
-    Exponential Filter
-    ------------------
+    First Order Process
+    -------------------
 
     Simulated Parameters:
     ---------------------
@@ -535,7 +536,66 @@ class FilterProcess(AbstractProcess):
         else:
             f = 0.0
         self._output = f*self._output + (1-f)*self._input
-        
+
+# First order process used to be called FilterProcess
+FilterProcess = FirstOrderProcess
+
+
+class DeadtimeProcess(AbstractProcess):
+    '''
+    DeadtimeProcess
+    ---------------
+
+    Simulated Inputs:
+    -----------------
+    input : float
+    
+    Simulated States:
+    -----------------
+    output : float
+
+
+    Simulation Parameters:
+    ----------------------
+    deadtime : float
+        Deadtime in seconds
+    '''
+
+    @property
+    def output(self):
+        return self.history[0]
+    @output.setter
+    def output(self,value):
+        self.history = [value]
+        self.t = [0]
+
+    @property
+    def input(self):
+        return self.history[-1]
+    @input.setter
+    def input(self,value):
+        self.history.append(value)
+        self.t.append(0)
+
+
+    def __init__(self,deadtime=0):
+        super().__init__()
+        self.deadtime = deadtime
+
+        # previous input values
+        self.history = [0]
+        # timestamps of previous values
+        self.t = [0]
+
+    def run_for(self,dt):
+        i = 1
+        while i <= len(self.t):
+            self.t[-i] += dt
+            if self.t[-i] >= self.deadtime:
+                self.t = self.t[-i:]
+                self.history = self.history[-i:]
+                break
+            i += 1
 
 
 class PIDProcess(AbstractProcess):
