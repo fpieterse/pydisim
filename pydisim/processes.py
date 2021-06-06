@@ -636,6 +636,8 @@ class PIDProcess(AbstractProcess):
         If true, sp is set equal to pv if man is true.
     non_interacting : bool
         If true, use non-interacting form (Ki = 1/Ti, Kd = 1*Td)
+    reverse : bool
+        Reverse acting control; when the PV increases, the output decreases.  Set to False for Direct acting. (default = True 
 
     Simulated Inputs:
     -----------------
@@ -711,12 +713,23 @@ class PIDProcess(AbstractProcess):
     @ophi.setter
     def ophi(self,value):
         self.opLimits = (self.opLimits[0],value)
+
+    @property
+    def K(self):
+        return self._K
+    @K.setter
+    def K(self,value):
+        if value < 0:
+            self._K = -value
+            self.reverse = False
+        else:
+            self._K = value
             
 
     def __init__(self):
         super().__init__()
 
-        self.K = 1.0
+        self._K = 1.0
         self.Ti = 1000.0
         self.Td = 0.0
         self.pvRange = 100.0
@@ -738,6 +751,7 @@ class PIDProcess(AbstractProcess):
 
         self.pvtrack = False
         self.non_interacting = False
+        self.reverse = True
 
         self.man = False
 
@@ -753,6 +767,11 @@ class PIDProcess(AbstractProcess):
         self._lastPv = self._nextPv
         self._lastSp = self._nextSp
 
+        
+        if self.reverse:
+            act = -1
+        else:
+            act = 1
 
         if not self.man:
             # For derivative action we must calculate the rate of change of the
@@ -769,24 +788,27 @@ class PIDProcess(AbstractProcess):
             # everything is negative
 
             # Integral Action
-            if self.non_interacting:
-                Ki = (self.K/abs(self.K))/self.Ti
+            if self.Ti <= 0:
+                Ki = 0
+            elif self.non_interacting:
+                Ki = 1/self.Ti
             else:
-                Ki = self.K/self.Ti
-            dOP = -dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
+                Ki = self._K/self.Ti
+
+            dOP = act*dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
 
             # Proportional Action
             if self.K_onErr:
-                dOP -= self.K*(dErr/self.pvRange)
+                dOP += act*self._K*(dErr/self.pvRange)
             else:
-                dOP -= self.K*(dPv/self.pvRange)
+                dOP += act*self._K*(dPv/self.pvRange)
 
             # Derivative Action
             if self.non_interacting:
                 Kd = self.Td
             else:
-                Kd = self.K* self.Td
-            dOP -= Kd*dDD/self.pvRange
+                Kd = self._K* self.Td
+            dOP += act*Kd*dDD/self.pvRange
 
             self.op += dOP*self.opRange
         else:
