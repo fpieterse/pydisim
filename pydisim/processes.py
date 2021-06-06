@@ -1002,18 +1002,29 @@ class GaussNoiseProcess(AbstractProcess):
 
     @property
     def output(self):
-        return self.input + numpy.random.normal(0,self.sigma)
+        return self._output
     @output.setter
     def output(self,value):
-        self.input = value
+        self._output = value
+        self._input = value
+    @property
+    def input(self):
+        return self._input
+    @input.setter
+    def input(self,value):
+        self._input = value
+        self._output = value
+
 
     def __init__(self):
         super().__init__()
 
         self.sigma = 0.05
-        self.input = 0.0
+        self._input = 0.0
+        self._output = 0.0
 
     def run_for(self,dt):
+        self._output = numpy.random.normal(self._input,self.sigma)
         pass
 
 class BrownNoiseProcess(AbstractProcess):

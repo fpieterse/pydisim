@@ -33,7 +33,7 @@ assert swp.output == 0
 
 # check that sin wave works
 pm.run_process(0.5) #run for 30 seconds
-sin30 = numpy.sin(0.5*numpy.pi)
+sin30 = swp.amplitude * numpy.sin(0.5*numpy.pi)
 print(sin30)
 print(swp.output)
 assert swp.output == sin30
