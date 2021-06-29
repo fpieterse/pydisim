@@ -659,6 +659,9 @@ class PIDProcess(AbstractProcess):
         
 
     '''
+    # TODO: Non-Interacting is the wrong word.  Interacting means d-action is
+    # multiplied by P+I, the difference I'm using is between the Ideal and
+    # Series equations.
 
     def get_pv(self):
         return self._nextPv
@@ -781,7 +784,7 @@ class PIDProcess(AbstractProcess):
                 dXdt = dErr/dt
             else:
                 dXdt = dPv/dt
-            dDD = dXdt - self._lastDxDt
+            dDD = dXdt - self._lastDxDt # TODO: Divide by dt?
             self._lastDxDt = dXdt
 
             # dOP is scaled delta OP. Reverse acting is the norm, that is why
