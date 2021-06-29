@@ -147,18 +147,31 @@ class PIDRecorderProcess(RecorderProcess):
 
         super().run_for(dt)
 
-    def plot(self,ax=None):
-        if ax == None:
-            fig,ax = plt.subplots(1,1)
+    def plot(self,ax=None,subplots=False):
+        if ax is None:
+            if subplots:
+                fig,ax = plt.subplots(nrows=2,sharex=True)
+            else:
+                fig,ax = plt.subplots(1,1)
+        else:
+            fig = None
+            if subplots:
+                if len(ax) != 2:
+                    raise("ax length must be 2 if using subplots on PIDRecorder")
 
-        ax2 = ax.twinx()
+        if subplots:
+            ax1 = ax[0]
+            ax2 = ax[1]
+        else:
+            ax1 = ax
+            ax2 = ax.twinx()
 
         lines = []
        
-        lines += ax.plot(self.timestamps,
+        lines += ax1.plot(self.timestamps,
                      self.data[self.loopname + '.pv'],
                      label=self.loopname + '.pv')
-        lines += ax.plot(self.timestamps,
+        lines += ax1.plot(self.timestamps,
                      self.data[self.loopname + '.sp'],
                      label=self.loopname + '.sp')
         lines += ax2.plot(self.timestamps,
@@ -166,11 +179,17 @@ class PIDRecorderProcess(RecorderProcess):
                      label=self.loopname + '.op',
                      c='C2')
 
-        labels = [line.get_label() for line in lines]
-        ax.legend(lines,labels)
+        if subplots:
+            ax1.legend()
+            ax2.legend()
+        else:
+            labels = [line.get_label() for line in lines]
+            ax1.legend(lines,labels)
 
+        ax1.set_title(self.loopname)
 
-        ax.set_title(self.loopname)
+        if not fig is None:
+            fig.tight_layout()
 
 
 
