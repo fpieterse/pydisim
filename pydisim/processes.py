@@ -638,6 +638,8 @@ class PIDProcess(AbstractProcess):
         If true, use non-interacting form (Ki = 1/Ti, Kd = 1*Td)
     reverse : bool
         Reverse acting control; when the PV increases, the output decreases.  Set to False for Direct acting. (default = True 
+    ff_gain : float
+        Feedforward gain
 
     Simulated Inputs:
     -----------------
@@ -651,6 +653,8 @@ class PIDProcess(AbstractProcess):
         Integral Time
     Td : float
         Derivative Time
+    ff : float
+        Feedforward Input
 
     Simulated States:
     -----------------
@@ -727,6 +731,15 @@ class PIDProcess(AbstractProcess):
             self.reverse = False
         else:
             self._K = value
+
+    @property
+    def ff(self):
+        return self._nextFF
+    @ff.setter
+    def ff(self,value,init=False):
+        self._nextFF = value
+        if init:
+            self._lastFF = value
             
 
     def __init__(self):
@@ -738,6 +751,7 @@ class PIDProcess(AbstractProcess):
         self.pvRange = 100.0
         self.opRange = 100.0
         self.opLimits = (0.0,100.0)
+        self.ff_gain = 1
 
         self.K_onErr = False
         self.D_onErr = False
@@ -746,8 +760,10 @@ class PIDProcess(AbstractProcess):
 
         self._lastPv = 0.0
         self._lastSp = 0.0
+        self._lastFF = 0.0
         self._nextPv = 0.0
         self._nextSp = 0.0
+        self._nextFF = 0.0
         self._lastDxDt = 0.0 # rate of change of derivative term
 
         self.op = 0.0
@@ -762,13 +778,16 @@ class PIDProcess(AbstractProcess):
         if (self._firstRun):
             self._lastPv = self._nextPv
             self._lastSp = self._nextSp
+            self._lastFF = self._nextFF
         dPv = self._nextPv - self._lastPv
 
         # change in erorr is change in PV minus change in SP
         dErr = dPv - (self._nextSp - self._lastSp)
+        dOP = self.ff_gain*(self._nextFF - self._lastFF)/self.opRange
 
         self._lastPv = self._nextPv
         self._lastSp = self._nextSp
+        self._lastFF = self._nextFF
 
         
         if self.reverse:
@@ -798,7 +817,7 @@ class PIDProcess(AbstractProcess):
             else:
                 Ki = self._K/self.Ti
 
-            dOP = act*dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
+            dOP += act*dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
 
             # Proportional Action
             if self.K_onErr:
