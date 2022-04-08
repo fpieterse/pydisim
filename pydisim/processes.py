@@ -634,8 +634,18 @@ class PIDProcess(AbstractProcess):
         Manual mode (default = false). In manual mode the execution is skipped
     pvtrack : bool
         If true, sp is set equal to pv if man is true.
+    ideal_form : bool
+        PID Form.  The ideal form is when integral time and derivative time is
+        multiplied by proportional gain (Ki = K/Ti, Kd = K*Td).  Parallel form
+        is when the PID actions are parallel (Ki = 1/Ti, Kd = 1*Td).
+        The series form, also called interactive form, is when the derivative
+        action is multiplied by (P+I), this made sense for physical PID
+        controllers with modular equipment and is not supported by this digital
+        implementation.
+        ideal_form = True = Use the Ideal form (default)
+        ideal_form = False = Use the Parallel form
     non_interacting : bool
-        If true, use non-interacting form (Ki = 1/Ti, Kd = 1*Td)
+        Deprecated because of incorrect term, use ideal_form
     reverse : bool
         Reverse acting control; when the PV increases, the output decreases.  Set to False for Direct acting. (default = True 
     ff_gain : float
@@ -658,14 +668,15 @@ class PIDProcess(AbstractProcess):
 
     Simulated States:
     -----------------
+    co : float
+        Calculated OP [EU]
+        The calculated OP is allowed to exceed the OP limits.  When the OP is
+        saturated, no integral action is applied.
     op : float
         Output [EU].
         
 
     '''
-    # TODO: Non-Interacting is the wrong word.  Interacting means d-action is
-    # multiplied by P+I, the difference I'm using is between the Ideal and
-    # Series equations.
 
     def get_pv(self):
         return self._nextPv
@@ -707,6 +718,12 @@ class PIDProcess(AbstractProcess):
             self._lastDxDt = value
     sp = property(get_sp,set_sp)
 
+    def get_op(self):
+        return min(max(op,self.opLimits[0]),self.opLimits[1])
+    def set_op(self):
+        self.co = value
+    op = property(get_op,set_op)
+
     @property
     def oplo(self):
         return self.opLimits[0]
@@ -740,7 +757,15 @@ class PIDProcess(AbstractProcess):
         self._nextFF = value
         if init:
             self._lastFF = value
-            
+
+    @property
+    def non_interacting(self):
+        print("WARNING: Deprecated use of non_interacting, use ideal_form")
+        return(not(self.ideal_form))
+    @non_interacting.setter
+    def non_interacting(self,value):
+        print("WARNING: Deprecated use of non_interacting, use ideal_form")
+        self.ideal_form = not(value)
 
     def __init__(self):
         super().__init__()
@@ -766,10 +791,10 @@ class PIDProcess(AbstractProcess):
         self._nextFF = 0.0
         self._lastDxDt = 0.0 # rate of change of derivative term
 
-        self.op = 0.0
+        self.co = 0.0
 
         self.pvtrack = False
-        self.non_interacting = False
+        self.ideal_form = True
         self.reverse = True
 
         self.man = False
@@ -784,7 +809,7 @@ class PIDProcess(AbstractProcess):
         # change in erorr is change in PV minus change in SP
         dErr = dPv - (self._nextSp - self._lastSp)
         dOP = self.ff_gain*(self._nextFF - self._lastFF)/self.opRange
-
+        
         self._lastPv = self._nextPv
         self._lastSp = self._nextSp
         self._lastFF = self._nextFF
@@ -812,12 +837,20 @@ class PIDProcess(AbstractProcess):
             # Integral Action
             if self.Ti <= 0:
                 Ki = 0
-            elif self.non_interacting:
+            elif not self.ideal_form:
                 Ki = 1/self.Ti
             else:
                 Ki = self._K/self.Ti
 
-            dOP += act*dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
+            # change in OP because of integral action
+            dOP_int = act*dt*Ki*(self._nextPv - self._nextSp)/self.pvRange
+            # if integrating up and OP is saturated, do nothing
+            if (self.co >= self.opLimits[1]) and (dOP_int > 0):
+                dOP_int = 0
+            elif (self.co <= self.opLimits[0]) and (dOP_int < 0):
+                dOP_int = 0
+
+            dOP += dOP_int
 
             # Proportional Action
             if self.K_onErr:
@@ -826,18 +859,17 @@ class PIDProcess(AbstractProcess):
                 dOP += act*self._K*(dPv/self.pvRange)
 
             # Derivative Action
-            if self.non_interacting:
+            if not self.ideal_form:
                 Kd = self.Td
             else:
                 Kd = self._K* self.Td
             dOP += act*Kd*dDD/self.pvRange
 
-            self.op += dOP*self.opRange
+            self.co += dOP*self.opRange
         else:
             if self.pvtrack:
                 self.set_sp(self._nextPv,init=True)
 
-        self.op = max(self.opLimits[0],min(self.opLimits[1],self.op))
         self._firstRun = False
         
 

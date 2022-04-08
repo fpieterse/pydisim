@@ -94,6 +94,27 @@ pid.run_for(100)
 assert pid.op == 0.0 # output decrease due to sp change (no integral action)
 
 
+# Test OP does not wind up
+pid.set_pv(51,True)
+pid.set_sp(50,True)
+pid.op = 100
+pid.pvRange = 100
+pid.opRange = 100
+pid.opLimits = (0,100)
+pid.K = -1.0
+pid.Ti = 1
+pid.run_for(1)
+assert pid.co == 100
+pid.pv += 1
+pid_run_for(1)
+assert pid.co == 101
+assert pid.op == 100
+pid.pv -= 1
+pid_run_for(1)
+assert pid.co == 99
+
+
+
 
 #---- TANK -----------------------------------------------------------
 tank = HoldupProcess()
