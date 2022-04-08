@@ -719,8 +719,8 @@ class PIDProcess(AbstractProcess):
     sp = property(get_sp,set_sp)
 
     def get_op(self):
-        return min(max(op,self.opLimits[0]),self.opLimits[1])
-    def set_op(self):
+        return min(max(self.co,self.opLimits[0]),self.opLimits[1])
+    def set_op(self,value):
         self.co = value
     op = property(get_op,set_op)
 
