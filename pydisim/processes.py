@@ -15,6 +15,7 @@ import numpy # for noise
 import re
 import datetime
 import scipy
+import scipy.interpolate
 
 
 def _write_connection(upstream_process,upstream_name,upstream_index,
@@ -941,6 +942,67 @@ class OperatorProcess(AbstractProcess):
 
         self.op = max(self.opRange[0],min(self.opRange[1],self.op))
         
+
+class Interp1dProcess(AbstractProcess):
+    '''
+    Process based on scipy.interpolate.interp1d including backward and forward
+    interpolation when setting the output.
+
+    Data is extrapolated outside the bounds of the data.
+    The reverse function is always set to kind='linear' to avoid strange numbers
+    when inverting e.g. cubic functions, the reverse interpolation is only used
+    during initialisation so it does not introduce an error during normal
+    simulation.
+
+    Simulated Inputs:
+    -----------------
+    input : float
+    output :float
+
+    '''
+
+    @property
+    def input(self):
+        return self._input
+    @input.setter
+    def input(self,value):
+        self._input = value
+        self._output = self._fwd_fun(value)
+
+    @property
+    def output(self):
+        return self._output
+    @ output.setter
+    def output(self,value):
+        self._output = value
+        self._input = float(self._rev_fun(value))
+
+
+    def __init__(self,x,y,kind='linear'):
+        '''
+        All the arguments are passed to scipy.interpolate.interp1d
+        '''
+        super().__init__()
+        self._fwd_fun = scipy.interpolate.interp1d(
+            x,
+            y,
+            kind=kind,
+            fill_value='extrapolate',
+        )
+        self._rev_fun = scipy.interpolate.interp1d(
+            y,
+            x,
+            kind='linear',
+            fill_value='extrapolate'
+        )
+
+        self._input = numpy.mean(x)
+        self._output = float(self._fwd_fun(self._input))
+
+    def run_for(self,dt):
+        pass
+
+
 
 class ValveCharProcess(AbstractProcess):
     '''
