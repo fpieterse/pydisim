@@ -800,6 +800,7 @@ class PIDProcess(AbstractProcess):
 
         self.man = False
 
+
     def run_for(self,dt):
         if (self._firstRun):
             self._lastPv = self._nextPv
@@ -867,6 +868,7 @@ class PIDProcess(AbstractProcess):
             dOP += act*Kd*dDD/self.pvRange
 
             self.co += dOP*self.opRange
+
         else:
             if self.pvtrack:
                 self.set_sp(self._nextPv,init=True)
@@ -1289,8 +1291,8 @@ class SelectProcess(AbstractProcess):
         Input values
     seltype : string
         Selection Type
-        hi     : select minimum of inputs
-        lo     : select maximum of inputs
+        high   : select minimum of inputs
+        low    : select maximum of inputs
         median : select median, if even number of inputs, select avg of middle
                  two inputs
     rate : Rate at which output is ramped to selected input [EU/sec].
@@ -1319,16 +1321,16 @@ class SelectProcess(AbstractProcess):
         '''
         super().__init__()
         self.input = [0.0]*n_inputs
-        self.seltype = 'hi'
+        self.seltype = 'high'
         self.rate = float('inf')
 
         self._output = 0
 
     def run_for(self,dt):
         out = None
-        if self.seltype == 'hi':
+        if self.seltype == 'high':
             out = max(self.input)
-        elif self.seltype == 'lo':
+        elif self.seltype == 'low':
             out = min(self.input)
         elif self.seltype == 'median':
             out = numpy.median(self.input)
@@ -1343,7 +1345,9 @@ class SelectProcess(AbstractProcess):
 
 
             
-        
+      
+# TODO: Combine with Interp1dProcess
+# PLTPRocess has oplimits, this might be a useful feature
 class PLTProcess(AbstractProcess):
     '''
     Piecewise Linear Transform
