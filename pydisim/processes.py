@@ -1243,6 +1243,7 @@ class SinNoiseProcess(AbstractProcess):
 class MathAddProcess(AbstractProcess):
     '''
     Adds inputs
+    input[0]*scale[0] + input[1]*scale[1] + .. + input[n]*scale[n] + bias
     
     Simulation Parameters:
     ----------------------
@@ -1250,6 +1251,8 @@ class MathAddProcess(AbstractProcess):
         input values
     scale : numpy array
         scale values for each input
+    bias : float
+        output bias
 
     Simulation Outputs:
     -------------------
@@ -1258,11 +1261,15 @@ class MathAddProcess(AbstractProcess):
 
     @property
     def output(self):
-        return sum(self.input * self.scale)
+        '''
+        sum of inputs.  Setting this value will set inputs to equal scaled
+        fractions of output
+        '''
+        return sum(self.input * self.scale) + self.bias
     @output.setter
     def output(self,value):
         for i in range(len(self.input)):
-            self.input[i] = value/(len(self.input)*self.scale[i])
+            self.input[i] = (value-self.bias)/(len(self.input)*self.scale[i])
 
     def __init__(self,n_inputs=3):
         '''
@@ -1274,11 +1281,59 @@ class MathAddProcess(AbstractProcess):
 
         self.input = numpy.zeros(n_inputs)
         self.scale = numpy.ones(n_inputs)
+        self.bias = 0
 
     def run_for(self,dt):
         pass
 
 
+class MathMulProcess(AbstractProcess):
+    '''
+    Multiplies inputs
+    input[0]*input[1]*...*input[n]*scale + bias
+    
+    Simulation Parameters:
+    ----------------------
+    input : numpy array
+        input values
+    scale : float
+        output scale
+    bias : float
+        output bias
+
+    Simulation Outputs:
+    -------------------
+    output : multiplication of inputs
+    '''
+
+    @property
+    def output(self):
+        '''
+        Multiplication of inputs.
+        Setting this value will set the first input's scaled value to the output
+        and the remaining input values to 1.
+        '''
+        return self.input.prod()*self.scale + self.bias
+    @output.setter
+    def output(self,value):
+        self.input[0] = (value - self.bias)/self.scale
+        for i in range(1,len(self.input)):
+            self.input[i] = 1.0
+
+    def __init__(self,n_inputs=3):
+        '''
+        Parameters:
+        -----------
+        n_inputs: number of inputs
+        '''
+        super().__init__()
+
+        self.input = numpy.zeros(n_inputs)
+        self.scale = 1
+        self.bias = 0
+
+    def run_for(self,dt):
+        pass
 
 
 class SelectProcess(AbstractProcess):
