@@ -31,7 +31,6 @@ assert dt.t == [3,2,0]
 
 
 dt.run_for(7)
-print(dt.t)
 assert dt.t == [10,9,7,0]
 assert dt.history == [3,2,2,2]
 assert dt.output == 3
@@ -106,12 +105,12 @@ pid.Ti = 1
 pid.run_for(1)
 assert pid.co == 100
 pid.pv += 1
-pid_run_for(1)
+pid.run_for(1)
 assert pid.co == 101
 assert pid.op == 100
 pid.pv -= 1
-pid_run_for(1)
-assert pid.co == 99
+pid.run_for(1)
+assert pid.co == 100
 
 
 
@@ -232,11 +231,11 @@ sel.input[2] = -10
 sel.input[3] = 8
 sel.input[4] = 5
 
-sel.seltype = 'hi'
+sel.seltype = 'high'
 sel.run_for(1)
 assert sel.output == 99
 
-sel.seltype = 'lo'
+sel.seltype = 'low'
 sel.run_for(1)
 assert sel.output == -10
 
@@ -249,6 +248,46 @@ sel._output = 0
 sel.rate = 1
 sel.run_for(1)
 assert sel.output == 1
+
+
+#---- MATHADD MATHMUL --------------------------------------------------------
+add = MathAddProcess(n_inputs=5)
+add.bias = 11.5
+add.scale[0] = 1
+add.scale[1] = 2
+add.scale[2] = 44.5
+add.scale[3] = 0
+add.scale[4] = -10
+
+add.output = 10
+assert add.output == 10
+
+# if all the scales are zero, the inputs should be zero
+add.scale[:] = 0
+add.output = 10
+assert add.output == add.bias 
+assert add.input[0] == 0
+
+# if the sum of the scales is zero then the inputs cannot be calculated
+# confirm no errors are raised and the output is equal to the bias.
+add.scale[1] = 1
+add.output = 10
+assert add.output == 10
+add.scale[2] = -1
+add.output = 10
+assert add.output == 10
+
+
+mul = MathMulProcess(n_inputs=3)
+mul.bias = 1
+mul.scale = 10
+mul.output = 10
+assert mul.output == 10
+mul.scale = 0
+mul.output = 10
+assert mul.output == 10
+
+
 
 #---- Tank level control -----------------------------------------------------
 # Run a tank with a level controller with fixed tuning for a while and confirm

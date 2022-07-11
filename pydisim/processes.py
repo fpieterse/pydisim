@@ -1262,14 +1262,28 @@ class MathAddProcess(AbstractProcess):
     @property
     def output(self):
         '''
-        sum of inputs.  Setting this value will set inputs to equal scaled
-        fractions of output
+        sum of inputs.
+        Setting the output will set all the inputs to equal values.
+        If the sum of the scales is equal to zero, the first non-zero scaled
+        input will be set equal to the output-bias
         '''
         return sum(self.input * self.scale) + self.bias
     @output.setter
     def output(self,value):
-        for i in range(len(self.input)):
-            self.input[i] = (value-self.bias)/(len(self.input)*self.scale[i])
+        s = self.scale.sum()
+        if s == 0:
+            self.input[:] = 0
+            # set the first non-zero input to the output
+            for i in range(len(self.input)):
+                if self.scale[i] != 0:
+                    self.input[i] = (value-self.bias)/self.scale[i]
+                    break
+                if i == len(self.input):
+                    # no non-zero input found, use the bias
+                    self.bias = value
+        else:
+            self.input[:] = (value - self.bias)/s
+
 
     def __init__(self,n_inputs=3):
         '''
@@ -1316,9 +1330,12 @@ class MathMulProcess(AbstractProcess):
         return self.input.prod()*self.scale + self.bias
     @output.setter
     def output(self,value):
-        self.input[0] = (value - self.bias)/self.scale
-        for i in range(1,len(self.input)):
-            self.input[i] = 1.0
+        if self.scale == 0:
+            self.bias = value
+        else:
+            self.input[0] = (value - self.bias)/self.scale
+            for i in range(1,len(self.input)):
+                self.input[i] = 1.0
 
     def __init__(self,n_inputs=3):
         '''
