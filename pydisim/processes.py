@@ -1416,6 +1416,82 @@ class SelectProcess(AbstractProcess):
                        )
 
 
+class ORSelectProcess(pds.AbstractProcess):
+    '''
+    Override Selector.
+    
+    Upstream PIDProcesses are specified as list during initialisation.
+    Override Selector includes functionality to bias non-selected upstream
+    PID controller.
+
+    Simulation Parameters:
+    ----------------------
+    seltype : string
+        Selection Type
+        high   : select minimum of inputs
+        low    : select maximum of inputs
+    or_bias : list
+        list of booleans to select if each input should be biased if not selected
+        bias is equal to K*err
+
+    Simulation States:
+    ------------------
+    output : Output
+    selected : int
+        Selected input
+
+    '''
+    
+
+    def __init__(self,PIDs):
+        '''
+        Parameters:
+        -----------
+        PIDs : list of PIDProcess
+        '''
+        super().__init__()
+        self.PIDs = PIDs
+        self.or_bias = [True]*len(self.PIDs)
+        
+        self.rate = float('inf')
+        
+        self.output = 0
+        self.selected = None
+
+    def run_for(self,dt):
+        out = self.PIDs[0].op
+        selected = 0
+        
+        if self.seltype == 'high':
+            for i in range(1,len(self.PIDs)):
+                if self.PIDs[i].op > out:
+                    out = self.PIDs[i].op
+                    selected = i
+        elif self.seltype == 'low':
+            for i in range(1,len(self.PIDs)):
+                if self.PIDs[i].op < out:
+                    out = self.PIDs[i].op
+                    selected = i
+        else:
+            raise Exception("Unknown seltype {}".format(self.seltype))
+            
+        self.selected = selected
+                  
+        # Apply O/R Bias
+
+        for i in range(len(self.PIDs)):
+            if i != selected:
+                pid = self.PIDs[i]
+                
+                if self.or_bias[i]:
+                    err = (pid.pv - pid.sp)/pid.pvRange
+                else:
+                    err = 0
+                
+                pid.op = out - pid._K*err*pid.opRange
+
+
+        self.output = out
             
       
 # TODO: Combine with Interp1dProcess
