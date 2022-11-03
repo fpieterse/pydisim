@@ -1416,7 +1416,7 @@ class SelectProcess(AbstractProcess):
                        )
 
 
-class ORSelectProcess(pds.AbstractProcess):
+class ORSelectProcess(AbstractProcess):
     '''
     Override Selector.
     
